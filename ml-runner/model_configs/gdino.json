@@ -1,0 +1,4 @@
+{
+    "checkpoint_path": "weights/groundingdino_swint_ogc.pth",
+    "config_path": "groundingdino/config/GroundingDINO_SwinT_OGC.py"
+}

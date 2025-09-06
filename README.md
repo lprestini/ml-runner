@@ -5,20 +5,25 @@ Simple to set up, and easy to implement new models.
 
 The motivation behind this work is that certain models are really complicated to convert to torch script and sometimes not even feasibale. To allow Nuke users (and other software users) to take advantage of this models without having to hop into comfy ui.   
 
+FYI - this is an ongoing project I'm working on - and by no means a finished software. 
+It saves me a lot of time to use this - but there is no exepectations at all for people to be using it given that its still very undevelopped.
+
+
 ## USAGE
-
-The server works by listening on a given directory, once the server is started, it'll keep going waiting for a config file with the information on what to run and where to render stuff. 
-The config files are created from Nuke - however it can be implemented in any app, as long as they allow you to use python. 
-Nuke gizmo is contained inside this repo under nuke/model_runner.nk
-
-To run the server simply run the following code from inside the created virtual environment
+After having followed the install instructions to install the server simply run the following code from inside the created virtual environment
 
 ```
 python ml-runner.py --listen_dir /path/to/listen_dir
 ```
 
-Once the server is running, you can send the config to the listening directory from Nuke using the ModelRunner node. 
-Obviously, the machine that is running the server MUST have access to the directories where the images you want to process/ render are - otherwise it will fail. 
+And the server will be listening on the given directory. Once the server is started, it'll keep going waiting until told otherwise. 
+To stop it - simply press ctrl+c in the terminal (I know not great). 
+
+Once the server is running, you can send the configs to the listening directory from Nuke using the ModelRunner node. 
+Obviously, the machine that is running the server **MUST** have access to the directories where the images you want to process/ render are - otherwise it will fail. 
+
+The config files right now are created from Nuke - however it can be implemented in any app, as long as they allow you to use python. 
+Nuke gizmo is contained inside this repo under nuke/ToolSets/ML/ModelRunner.nk
 
 Refer to the video to see how the nuke node works:
 VIDEO
@@ -70,6 +75,10 @@ cd ../../../
 ```
 
 The above will ensure that SAM2 and DAM4SAM are installed correctly.
+
+Then add the following to your init.py 
+
+`nuke.pluginAddPath('/path/to/ml-runner/ml-runner/nuke/')`
 
 # Installing Grounding Dino (This is not required for the basic functionality. It's only used if you want to use semantic detection)
 To install GroundindDino, follow the instructions on their page here: https://github.com/IDEA-Research/GroundingDINO

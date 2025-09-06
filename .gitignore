@@ -1,0 +1,8 @@
+*.pt
+*.pth
+__pycache*.pt
+*.pth
+*.pyc
+*/__pycache__/*
+*.tar 
+
