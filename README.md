@@ -25,8 +25,9 @@ Obviously, the machine that is running the server **MUST** have access to the di
 The config files right now are created from Nuke - however it can be implemented in any app, as long as they allow you to use python. 
 Nuke gizmo is contained inside this repo under nuke/ToolSets/ML/ModelRunner.nk
 
-Refer to the video to see how the nuke node works:
-VIDEO
+To see how the nuke node works, simply click the below image or the [link to video](https://vimeo.com/1116518771)
+[![ModelRunner for Nuke Tutorial](https://raw.githubusercontent.com/lprestini/ml-runner/refs/heads/main/assets/icon.png)](https://vimeo.com/1116518771)
+
 
 ## Current features and implemented models
 Main features:
