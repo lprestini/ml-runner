@@ -374,7 +374,9 @@ if __name__ == '__main__':
     runner = MLRunner(listen_path, use_florence = use_florence)
 
     # Gotta use poll as the standard observer doesnt work on nfs
-    is_poll = not listen_path.startswith('/mnt/') or not listen_path.startswith('/Volumes/')
+    is_poll = not listen_path.startswith('/mnt/')
+    is_poll = not listen_path.startswith('/Volumes/') if is_poll else is_poll
+    
     observer = Observer() if is_poll else PollingObserver(timeout = 1.0)
     event_handler = MLRunnerHandler(runner)
 
