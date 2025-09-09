@@ -12,16 +12,37 @@ if torch.cuda.is_available():
 print(f"using device: {device}")
 
 from edited_sam2.sam2.build_sam import build_sam2_video_predictor
-from mlrunner_utils.logs import write_stats_file, calc_progress
+from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 class runSAM2(object):
-    def __init__(self, sam2_checkpoint_path, model_cfg_path, video_dir, frame_names, render_dir, render_name, boxes_filt, ann_frame_idx, first_frame_sequence, pred_phrases, shot_name,logger, uuid, H = None,W = None, use_gdino = True, limit_range = None, inference_state = None, name_idx = 0, delimiter = '.'):
+    #TODO move config reading to model class
+    def __init__(self, 
+                 sam2_checkpoint_path,
+                 model_cfg_path,
+                 video_dir,
+                 numpy_img_list,
+                 render_dir,
+                 render_name,
+                 boxes_filt,
+                 ann_frame_idx,
+                 first_frame_sequence,
+                 pred_phrases,
+                 shot_name, 
+                 logger,
+                 uuid,
+                 H = None,
+                 W = None,
+                 use_gdino = True,
+                 limit_range = None,
+                 inference_state = None,
+                 name_idx = 0,
+                 delimiter = '.'):
 
         self.sam2_checkpoint = sam2_checkpoint_path
         self.model_cfg = model_cfg_path
 
         self.predictor = build_sam2_video_predictor(self.model_cfg, self.sam2_checkpoint, device=device)
-        self.frame_names = frame_names
+        self.numpy_img_list = numpy_img_list
         self.video_dir = video_dir
         self.render_dir = render_dir
         self.render_name = render_name
@@ -41,41 +62,34 @@ class runSAM2(object):
         self.inference_state = inference_state
         self.name_idx = name_idx
         self.delimiter = delimiter
+        self.is_limit = len(self.numpy_img_list) == 0 and self.limit_range != None
 
         ##Debug paramters
         self.render = True ## This is for debug only
         self.plot_results = False 
-    
+
     def flip_boxes(self,box, H, W):
         if box[0] > box[2] or box[1]<box[3]:
             box = [min(box[0],box[2]), min(box[1],box[3]), max(box[0],box[2]), max(box[1],box[3]),]
         box = [box[0],  H-box[3]-1, box[2],  H-box[3]-1 + (box[3]-box[1]),]
         return box
 
-    def check_for_abort_render(self, is_tracking = False):
-        is_abort = os.path.isfile(os.path.join(self.render_dir,'cancel_render').replace('\\','/'))
-        if is_abort and not is_tracking:
-            os.remove(os.path.join(self.render_dir,'cancel_render').replace('\\','/'))
-        if is_abort:
-            self.logger.info('Interrupting render as we detected an abort request from the user')
-            write_stats_file(self.render_dir, self.shot_name, self.uuid, '0%', '0%', 'False', 'True')
-            
-        return is_abort
-
     def run(self):
         ## If the model returns an image that you don't expect, its probable that the error comes from here
         # I've edited this function so that it takes in shot name as well
         if not self.inference_state:
             self.logger.info(f'Loading video')
-            self.inference_state = self.predictor.init_state(video_path=self.video_dir, shot_name = self.shot_name, limit_range = self.limit_range, delimiter = self.delimiter)
+            self.inference_state = self.predictor.init_state(video_path=self.video_dir, shot_name = self.shot_name, limit_range = self.limit_range, delimiter = self.delimiter, numpy_img_list = self.numpy_img_list)
             self.logger.info(f'Video loaded')
         else:
             self.logger.info('Using cached video!')
 
         shot_name, ext = os.path.splitext(self.shot_name)
         self.render_name = self.render_name if not self.render_name == '' else shot_name
+
         # If we limited the range, the annotation frame will have a different index
-        if self.limit_range:
+        # This is only used if we are not reading the preloaded frames
+        if self.is_limit:
             self.ann_frame_idx -= self.limit_range[0]
 
         # Flip boxes if they're coming from Nuke
@@ -89,7 +103,7 @@ class runSAM2(object):
 
         for idx, b in enumerate(self.boxes_filt):
             # Check for abort render file at major break points
-            if self.check_for_abort_render():
+            if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
                 break
 
             self.predictor.reset_state(self.inference_state)
@@ -104,7 +118,7 @@ class runSAM2(object):
             )
 
             # Check for abort render file at major break points
-            if self.check_for_abort_render():
+            if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
                 break
 
             # run propagation throughout the video and collect the results in a dict
@@ -125,10 +139,10 @@ class runSAM2(object):
                     write_stats_file(self.render_dir, shot_name, self.uuid, '0%', track_progress, False)
 
                 # If we find file while tracking we break loop but not delete the file 
-                if self.check_for_abort_render(is_tracking=True):
+                if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
                     break
             # And we delete the file here
-            if self.check_for_abort_render():
+            if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
                 break
 
             if self.ann_frame_idx != 0:
@@ -145,10 +159,10 @@ class runSAM2(object):
                         write_stats_file(self.render_dir, shot_name, self.uuid, '0%', track_progress, False)
 
                     # And we repeat here
-                    if self.check_for_abort_render(is_tracking=True):
+                    if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
                         break
                 # And we delete the file here
-                if self.check_for_abort_render():
+                if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
                     break
 
             if self.render:
@@ -161,7 +175,7 @@ class runSAM2(object):
             for out_frame_idx in range(0, total_steps, self.vis_frame_stride):
 
                 # And we delete the file here
-                if self.check_for_abort_render():
+                if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
                     break
                 if self.render:
                     
@@ -170,7 +184,7 @@ class runSAM2(object):
                         # Reshape the mask to match image format
                         mask_img_format = out_mask.reshape(self.H, self.W,1)
                         mask_img_format = mask_img_format.astype(int) * 255
-                        frame_n = out_frame_idx + self.first_frame_sequence if not self.limit_range else out_frame_idx + self.limit_range[0] + self.first_frame_sequence
+                        frame_n = out_frame_idx + self.first_frame_sequence if not self.is_limit else out_frame_idx + self.limit_range[0] + self.first_frame_sequence
                         
                         if self.use_gdino:
                             filename = f'{self.render_name}_{self.pred_phrases[idx]}_{idx}'
@@ -185,11 +199,12 @@ class runSAM2(object):
                         if out_frame_idx % 10 == 0 or (out_frame_idx + 1 == total_steps):
                             render_progress = calc_progress(total_boxes, idx + 1, out_frame_idx + 1, total_steps)
                             write_stats_file(self.render_dir, filename, self.uuid, render_progress, track_progress, False)
-                        # And we delete the file here
-                        if self.check_for_abort_render(is_tracking=True):
+                            
+                        #  We check for cancel file but not delete file 
+                        if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
                             break
-                                # And we delete the file here
-                    if self.check_for_abort_render():
+                    # And we delete the file here
+                    if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
                         break
                     
         return self.inference_state

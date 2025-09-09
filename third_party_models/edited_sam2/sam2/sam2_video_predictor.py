@@ -48,6 +48,7 @@ class SAM2VideoPredictor(SAM2Base):
         offload_video_to_cpu=False,
         offload_state_to_cpu=False,
         async_loading_frames=False,
+        numpy_img_list = False,
     ):
         
         """Initialize an inference state."""
@@ -61,6 +62,7 @@ class SAM2VideoPredictor(SAM2Base):
             compute_device=compute_device,
             limit_range = limit_range,
             delimiter = delimiter,
+            numpy_img_list = numpy_img_list,
         )
         inference_state = {}
         inference_state["images"] = images
