@@ -98,7 +98,6 @@ def _load_img_as_tensor(img_path, image_size, config = None):
             img_np = img_np / 255.0
         else:
             raise RuntimeError(f"Unknown image dtype: {img_np.dtype} on {img_path}")
-        img = torch.from_numpy(img_np).permute(2, 0, 1)
         video_width, video_height = img_pil.size  # the original video size
     else:
         img_np = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
@@ -107,9 +106,9 @@ def _load_img_as_tensor(img_path, image_size, config = None):
         img_np = convert_linear_to_srgb(img_np)
         img_np = cv2.resize(img_np, (int(image_size),int(image_size)), interpolation = cv2.INTER_CUBIC)
 
-        # Ensure image is in 0-1 range
-        img_np = np.clip(img_np, 0,1)
-        img = torch.from_numpy(img_np).permute(2, 0, 1)
+    # Ensure image is in 0-1 range
+    img_np = np.clip(img_np, 0,1)
+    img = torch.from_numpy(img_np).permute(2, 0, 1)
 
     return img, video_height, video_width
 
@@ -197,6 +196,7 @@ def load_video_frames(
     offload_video_to_cpu,
     limit_range = None,
     delimiter = '.',
+    numpy_img_list = False,
     img_mean=(0.485, 0.456, 0.406),
     img_std=(0.229, 0.224, 0.225),
     async_loading_frames=False,
@@ -230,6 +230,7 @@ def load_video_frames(
             compute_device=compute_device,
             limit_range = limit_range,
             delimiter = delimiter,
+            numpy_img_list = numpy_img_list,
         )
     else:
         raise NotImplementedError(
@@ -248,6 +249,7 @@ def load_video_frames_from_jpg_images(
     compute_device=torch.device("cuda"),
     limit_range = None,
     delimiter = '.',
+    numpy_img_list = False,
 ):
     """
     Load the video frames from a directory of JPEG files ("<frame_index>.jpg" format).
@@ -257,58 +259,73 @@ def load_video_frames_from_jpg_images(
 
     You can load a frame asynchronously by setting `async_loading_frames` to `True`.
     """
-    if isinstance(video_path, str) and os.path.isdir(video_path):
-        jpg_folder = video_path
-    else:
-        raise NotImplementedError(
-            "Only JPEG frames are supported at this moment. For video files, you may use "
-            "ffmpeg (https://ffmpeg.org/) to extract frames into a folder of JPEG files, such as \n"
-            "```\n"
-            "ffmpeg -i <your_video>.mp4 -q:v 2 -start_number 0 <output_dir>/'%05d.jpg'\n"
-            "```\n"
-            "where `-q:v` generates high-quality JPEG frames and `-start_number 0` asks "
-            "ffmpeg to start the JPEG file from 00000.jpg."
-        )
 
-    frame_names = [
-        p
-        for p in os.listdir(jpg_folder)
-        if os.path.splitext(p)[-1] in [".jpg", ".jpeg", ".JPG", ".JPEG", '.png', '.exr']]
-    
-    
-    try:
-        frame_names.sort(key=lambda p: int(os.path.splitext(p)[0].split(delimiter)[-1]))
-    except Exception as e:
-        if 'invalid literal for int()' in str(e):
-            raise ValueError('The provided delimiter is not in the shot name. Please make sure you provide the correct delimiter to split the name from the frames.')
-        else:
-            raise e
-        
-    img_paths = [os.path.join(jpg_folder, frame_name) for frame_name in frame_names]
-    if limit_range:
-        img_paths = img_paths[limit_range[0]:limit_range[1]]
-        frame_names = frame_names[limit_range[0]:limit_range[1]]
-
-    num_frames = len(frame_names)
-    if num_frames == 0:
-        raise RuntimeError(f"no images found in {jpg_folder}")
     img_mean = torch.tensor(img_mean, dtype=torch.float32)[:, None, None]
     img_std = torch.tensor(img_std, dtype=torch.float32)[:, None, None]
 
-    if async_loading_frames:
-        lazy_images = AsyncVideoFrameLoader(
-            img_paths,
-            image_size,
-            offload_video_to_cpu,
-            img_mean,
-            img_std,
-            compute_device,
-        )
-        return lazy_images, lazy_images.video_height, lazy_images.video_width
+    if not numpy_img_list:
+        if isinstance(video_path, str) and os.path.isdir(video_path):
+            jpg_folder = video_path
+        else:
+            raise NotImplementedError(
+                "Only JPEG frames are supported at this moment. For video files, you may use "
+                "ffmpeg (https://ffmpeg.org/) to extract frames into a folder of JPEG files, such as \n"
+                "```\n"
+                "ffmpeg -i <your_video>.mp4 -q:v 2 -start_number 0 <output_dir>/'%05d.jpg'\n"
+                "```\n"
+                "where `-q:v` generates high-quality JPEG frames and `-start_number 0` asks "
+                "ffmpeg to start the JPEG file from 00000.jpg."
+            )
 
-    images = torch.zeros(num_frames, 3, image_size, image_size, dtype=torch.float32)
-    for n, img_path in enumerate(tqdm(img_paths, desc="frame loading (JPEG)")):
-        images[n], video_height, video_width = _load_img_as_tensor(img_path, image_size)
+        frame_names = [
+            p
+            for p in os.listdir(jpg_folder)
+            if os.path.splitext(p)[-1] in [".jpg", ".jpeg", ".JPG", ".JPEG", '.png', '.exr']]
+        
+        
+        try:
+            frame_names.sort(key=lambda p: int(os.path.splitext(p)[0].split(delimiter)[-1]))
+        except Exception as e:
+            if 'invalid literal for int()' in str(e):
+                raise ValueError('The provided delimiter is not in the shot name. Please make sure you provide the correct delimiter to split the name from the frames.')
+            else:
+                raise e
+            
+        img_paths = [os.path.join(jpg_folder, frame_name) for frame_name in frame_names]
+        if limit_range:
+            img_paths = img_paths[limit_range[0]:limit_range[1]]
+            frame_names = frame_names[limit_range[0]:limit_range[1]]
+
+        num_frames = len(frame_names)
+        if num_frames == 0:
+            raise RuntimeError(f"no images found in {jpg_folder}")
+
+
+        if async_loading_frames:
+            lazy_images = AsyncVideoFrameLoader(
+                img_paths,
+                image_size,
+                offload_video_to_cpu,
+                img_mean,
+                img_std,
+                compute_device,
+            )
+            return lazy_images, lazy_images.video_height, lazy_images.video_width
+        images = torch.zeros(num_frames, 3, image_size, image_size, dtype=torch.float32)
+        for n, img_path in enumerate(tqdm(img_paths, desc="frame loading (JPEG)")):
+            images[n], video_height, video_width = _load_img_as_tensor(img_path, image_size)
+    
+    else:
+        num_frames = len(numpy_img_list)
+        images = torch.zeros(num_frames, 3, image_size, image_size, dtype=torch.float32)
+
+        for n, img in enumerate(tqdm(numpy_img_list, desc='Prepping images for SAM')):
+            video_height, video_width, C = img.shape
+            img_np = cv2.resize(img, (int(image_size),int(image_size)), interpolation = cv2.INTER_CUBIC)
+            # Ensure image is in 0-1 range
+            img_np = np.clip(img_np, 0,1)
+            images[n] = torch.from_numpy(img_np).permute(2, 0, 1)
+
     if not offload_video_to_cpu:
         images = images.to(compute_device)
         img_mean = img_mean.to(compute_device)

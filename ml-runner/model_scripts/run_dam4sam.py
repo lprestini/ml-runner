@@ -15,16 +15,30 @@ if torch.cuda.is_available():
 print(f"using device: {device}")
 # print(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'third_party_models', 'edited_dam4sam'))
 from edited_dam4sam.dam4sam_tracker import DAM4SAMTracker
-from mlrunner_utils.logs import write_stats_file, calc_progress
+from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
 import PyOpenColorIO as OCIO
 
 class runDAM4SAM(object):
-    def __init__(self, checkpoint_path, first_frame_sequence, video_dir, frame_names, render_dir, render_name, boxes_filt, ann_frame_idx, pred_phrases, shot_name,logger, uuid, H = None,W = None, use_gdino = True, limit_range = None):
+    def __init__(self,
+                 checkpoint_path,
+                 first_frame_sequence,
+                 numpy_img_list,
+                 render_dir,
+                 render_name,
+                 boxes_filt,
+                 ann_frame_idx,
+                 pred_phrases,
+                 shot_name,
+                 logger,
+                 uuid,
+                 H = None,
+                 W = None,
+                 use_gdino = True,
+                 limit_range = None):
 
         self.predictor = DAM4SAMTracker('sam21pp-L', ch = checkpoint_path)
         self.first_frame_sequence = first_frame_sequence
-        self.frame_names = frame_names
-        self.video_dir = video_dir
+        self.numpy_img_list = numpy_img_list
         self.render_dir = render_dir
         self.render_name = render_name
         self.boxes_filt = boxes_filt
@@ -37,11 +51,10 @@ class runDAM4SAM(object):
         self.uuid = uuid
         self.H = H 
         self.W = W
-        self.limit_range = limit_range
         self.pred_phrases = self.pred_phrases if self.use_gdino else ['' for i in self.pred_phrases]
         self.track_progress = 0
         self.is_pil = not shot_name.endswith('.exr')
-
+        self.is_abort = False
 
         ##Debug paramters
         self.render = True ## This is for debug only
@@ -58,31 +71,6 @@ class runDAM4SAM(object):
         box = [box[0], box[1], abs(box[0]- box[2]), abs(box[1]- box[-1])]
         return box
 
-    def convert_linear_to_srgb(self, _img):
-        config = OCIO.Config.CreateFromFile(os.environ['MLRUNNER_OCIOCONFIG_PATH'])
-        OCIO.SetCurrentConfig(config)
-        config = OCIO.GetCurrentConfig()
-        ocioprocessor = config.getProcessor('linear', 'srgb')
-        cpu = ocioprocessor.getDefaultCPUProcessor()
-        cpu.applyRGB(_img)
-        return _img
-
-    def load_exr(self, img):
-        image = cv2.imread(img, cv2.IMREAD_UNCHANGED)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = self.convert_linear_to_srgb(image)
-        return image
-    
-    def load_frames(self):
-        frames_dir = sorted(glob.glob(os.path.join(self.video_dir, '*.%s' % os.path.splitext(self.shot_name)[-1].replace('.','')).replace('\\','/')))
-        if self.limit_range:
-            frames_dir = frames_dir[self.limit_range[0]: self.limit_range[1]]
-        if self.is_pil:
-            frames = [Image.open(frame) for frame in frames_dir]
-        else:
-            frames = [self.load_exr(frame) for frame in frames_dir]
-        return frames
-
     def track_mask_and_render(self, sorted_frames, ann_fram_idx, idx, direction = 'forward', prev_track_progress = 0):
 
         is_forward = direction == 'forward'
@@ -91,14 +79,21 @@ class runDAM4SAM(object):
         total_steps = len(sorted_frames)
         total_boxes = len(self.boxes_filt)
         for iidx, img in tqdm(indexed, total = len(frames), desc = f'Render {direction}'):
+            # Check for interrupt file without deleting file 
+            if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
+                break
             if iidx - ann_fram_idx == 0:
                 output = self.predictor.initialize(img, None, bbox = np.array(self.boxes_filt[idx]).astype(np.float32))
             else:
                 output = self.predictor.track(img)
+
+            # Check again
+            if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
+                break
+            
             pred_mask = output['pred_mask']
             frame_n = iidx + self.first_frame_sequence 
-            if self.limit_range:
-                frame_n += self.limit_range[0] + 1
+
             name_no_frame = f'{self.render_name}_{self.pred_phrases[idx]}_{idx}'
             name = f'{name_no_frame}_{frame_n}.png'
             cv2.imwrite(os.path.join(self.render_dir, name).replace('\\','/'), pred_mask * 255)
@@ -111,18 +106,19 @@ class runDAM4SAM(object):
                 track_progress = calc_progress(total_boxes, idx + 1, step, total_steps)
                 write_stats_file(self.render_dir, name_no_frame, self.uuid, track_progress, track_progress, False)
 
-        step = ((iidx + 1 ) - ann_fram_idx) + prev_track_progress if direction == 'forward' else ((ann_fram_idx - (iidx + 1)) + 1 ) + prev_track_progress
-        track_progress = calc_progress(total_boxes, idx + 1, step, total_steps)
-        write_stats_file(self.render_dir, name_no_frame, self.uuid, track_progress, track_progress, False)
-        self.track_progress = step
+        # And here we delete
+        if not check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
+            step = ((iidx + 1 ) - ann_fram_idx) + prev_track_progress if direction == 'forward' else ((ann_fram_idx - (iidx + 1)) + 1 ) + prev_track_progress
+            track_progress = calc_progress(total_boxes, idx + 1, step, total_steps)
+            write_stats_file(self.render_dir, name_no_frame, self.uuid, track_progress, track_progress, False)
+            self.track_progress = step
+        else:
+            self.is_abort = True
 
     def run(self):
         self.render_name = self.render_name if not self.render_name == '' else self.shot_name
-        sorted_frames = self.load_frames()
+        sorted_frames = self.numpy_img_list
         
-        if self.limit_range:
-            self.ann_frame_idx -= self.limit_range[0]
-
         # Prep boxes
         for idx,b in enumerate(self.boxes_filt):
             self.boxes_filt[idx] = self.prep_box_for_dam(b, self.H, self.W, from_nuke = not self.use_gdino)
@@ -138,6 +134,6 @@ class runDAM4SAM(object):
             
             self.track_mask_and_render(sorted_frames, self.ann_frame_idx, idx,)
             
-            if self.ann_frame_idx != 0:
+            if self.ann_frame_idx != 0 and not self.is_abort:
                 self.logger.info('Track mask backward')
                 self.track_mask_and_render(sorted_frames, self.ann_frame_idx, idx, direction='backward', prev_track_progress= self.track_progress)

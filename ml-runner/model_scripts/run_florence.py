@@ -15,8 +15,8 @@ from transformers import AutoProcessor, AutoModelForCausalLM
 
 
 class run_florence(object):
-    def __init__(self,image_pil, model, prcoessor, caption, box_threshold, text_threshold = None, with_logits = True, H = None, W = None):
-        self.image_pil = image_pil
+    def __init__(self,image, model, prcoessor, caption, box_threshold, text_threshold = None, with_logits = True, H = None, W = None):
+        self.image = image
 
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
@@ -41,18 +41,6 @@ class run_florence(object):
         self.pred_phrases = None
         return None
 
-    def load_image(self):
-        # load image
-        transform = T.Compose(
-            [
-                T.RandomResize([800], max_size=1333),
-                T.ToTensor(),
-                T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-            ]
-        )
-        image, _ = transform(self.image_pil, None)  # 3, h, w
-        return image
-
     def run_example(self, image, task_prompt, text_input=''):
 
         prompt = task_prompt + text_input
@@ -67,8 +55,7 @@ class run_florence(object):
         )
         generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
         if not self.H or not self.W:
-            self.H = image.height
-            self.W = image.width
+            self.H, self.W, C = self.image.shape
         parsed_answer = self.processor.post_process_generation(
             generated_text,
             task=task_prompt,
@@ -77,5 +64,5 @@ class run_florence(object):
         return parsed_answer
     
     def run(self):
-        result = self.run_example(self.image_pil, '<CAPTION_TO_PHRASE_GROUNDING>', self.caption)
+        result = self.run_example(self.image, '<CAPTION_TO_PHRASE_GROUNDING>', self.caption)
         return result['<CAPTION_TO_PHRASE_GROUNDING>']['bboxes'], result['<CAPTION_TO_PHRASE_GROUNDING>']['labels']
