@@ -12,6 +12,8 @@ import cv2
 import traceback
 import argparse
 
+from mlrunner_utils.imgutils import get_im_width_height, load_imgs_to_numpy, get_frame_list
+
 base_path = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), 'third_party_models').replace('\\','/')
 for i in os.listdir(base_path):
     sys.path.append(os.path.join(base_path,i).replace('\\','/'))
@@ -26,6 +28,7 @@ from model_scripts.run_florence import run_florence
 from model_scripts.run_dam4sam import runDAM4SAM
 from model_scripts.run_gdino import run_gdino
 from transformers import AutoProcessor, AutoModelForCausalLM 
+
 
 os.environ['OPENCV_IO_ENABLE_OPENEXR']='1'
 class MLRunner(object):
@@ -47,6 +50,7 @@ class MLRunner(object):
         self.is_same_name = None
         self.name_idx = 0
         self.is_pil = True
+        self.loaded_frames = None
         
         self.path_remap_base_server_path = None
         self.path_remap_replace_path = None
@@ -129,45 +133,56 @@ class MLRunner(object):
                     self.model_configs[i.replace('.json','')] = json.load(f)
         return self.model_configs
 
-    def sam_definition(self, sam2_checkpoint_path, model_cfg_path, video_dir, frame_names, render_dir, render_name, boxes_filt, ann_frame_idx, first_frame_sequence, pred_phrases, shot_name, logger, uuid, H = None,W = None, use_gdino = True, limit_range = None, delimiter = '.'):
-        sam = self.supported_models['sam'](sam2_checkpoint_path, model_cfg_path, video_dir, frame_names, render_dir, render_name, boxes_filt, ann_frame_idx, first_frame_sequence, pred_phrases, shot_name, logger, uuid, H,W, use_gdino, limit_range, self.inference_state, self.name_idx, delimiter)
+    def sam_definition(self, video_dir, numpy_img_list, render_dir, render_name, boxes_filt, ann_frame_idx, first_frame_sequence, pred_phrases, shot_name, logger, uuid, H = None,W = None, use_gdino = True, limit_range = None, delimiter = '.'):
+        sam = self.supported_models['sam'](self.model_configs['sam']['checkpoint_path'],
+                                           self.model_configs['sam']['config_path'],
+                                           video_dir,
+                                           numpy_img_list,
+                                           render_dir,
+                                           render_name,
+                                           boxes_filt,
+                                           ann_frame_idx,
+                                           first_frame_sequence,
+                                           pred_phrases,
+                                           shot_name,
+                                           logger,
+                                           uuid,
+                                           H,
+                                           W,
+                                           use_gdino,
+                                           limit_range,
+                                           self.inference_state,
+                                           self.name_idx,
+                                           delimiter)
         return sam
     
-    def dam_definition(self, checkpoint_path, ann_frame_idx_og, video_dir, frame_names, render_dir, render_name, boxes_filt, ann_frame_idx, pred_phrases, shot_name, logger, uuid, H = None,W = None, use_gdino = True, limit_range = None):
-        dam = self.supported_models['dam'](checkpoint_path, ann_frame_idx_og, video_dir, frame_names, render_dir, render_name, boxes_filt, ann_frame_idx, pred_phrases, shot_name, logger, uuid, H,W, use_gdino, limit_range)
+    def dam_definition(self, first_frame_sequence, numpy_img_list, render_dir, render_name, boxes_filt, ann_frame_idx, pred_phrases, shot_name, logger, uuid, H = None,W = None, use_gdino = True):
+        dam = self.supported_models['dam'](self.model_configs['dam']['checkpoint_path'],
+                                           first_frame_sequence,
+                                           numpy_img_list,
+                                           render_dir,
+                                           render_name,
+                                           boxes_filt,
+                                           ann_frame_idx,
+                                           pred_phrases,
+                                           shot_name,
+                                           logger,
+                                           uuid,
+                                           H,
+                                           W,
+                                           use_gdino)
         return dam
 
-    def florence_definition(self, image_pil, caption, box_threshold, text_threshold = None, with_logits = True, H = None,W = None,):
-        florence = self.supported_models['florence'](image_pil, self.florence_model, self.florence_processor, caption, box_threshold, text_threshold, with_logits, H, W)
+    def florence_definition(self, image_arr, caption, box_threshold, text_threshold = None, with_logits = True, H = None,W = None,):
+        florence = self.supported_models['florence'](image_arr, self.florence_model, self.florence_processor, caption, box_threshold, text_threshold, with_logits, H, W)
         return florence
     
-    def gdino_definition(self, image_pil, model_config_path, model_checkpoint_path, caption, box_threshold, text_threshold = None, with_logits = True, H = None,W = None,):
-        gdino = self.supported_models['gdino'](image_pil, model_config_path, model_checkpoint_path, caption, box_threshold, text_threshold, with_logits, self.is_pil, H,W)
+    def gdino_definition(self, image_arr, caption, box_threshold, text_threshold = None, with_logits = True, H = None, W = None):
+        gdino_path = [i for i in sys.path if 'dino' in i.lower()][0]
+        gdino_configs = os.path.join(gdino_path, self.model_configs['gdino']['config_path']).replace('\\','/')
+        gdino_checkpoint = os.path.join(gdino_path, self.model_configs['gdino']['checkpoint_path']).replace('\\','/')
+        gdino = self.supported_models['gdino'](image_arr, gdino_configs, gdino_checkpoint, caption, box_threshold, text_threshold, with_logits, H,W)
         return gdino
-
-    def load_pil(self, frame_to_load):
-        if '.png' in frame_to_load:
-            image = Image.open(frame_to_load)
-        else:
-            image = cv2.imread(frame_to_load, cv2.IMREAD_UNCHANGED)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        return image
-    
-    def get_im_width_height(self, img, is_pil = True):
-        if is_pil:
-            H,W = (img.height, img.width)
-        else:
-            H,W,C = img.shape 
-        return H,W
-
-    def get_frame_list(self, path_to_sequence, shot_name, delimiter):
-        # TODO right now this works only if there is 1 sequence per folder. 
-        frame_names = [
-            p for p in os.listdir(path_to_sequence)
-            if os.path.splitext(shot_name)[0].split(delimiter)[0] in p and p.endswith('.png') or p.endswith('.exr')   
-            ]
-        frame_names.sort(key=lambda p: int(os.path.splitext(p)[0].split(delimiter)[-1]))
-        return frame_names
     
     def clear_sam_memory(self):
         if not self.is_same_path:
@@ -199,7 +214,6 @@ class MLRunner(object):
         frame_idx = int(config['frame_idx'])
         first_frame_sequence = int(config['first_frame_sequence'])
         use_gdino = config['use_gdino']
-        model_configs = self.model_configs[model_to_run]
         limit_range = config['limit_range']
         limit_first = config['limit_first']
         limit_last = config['limit_last']
@@ -227,6 +241,7 @@ class MLRunner(object):
         # If path or limit is not the same, clear inference state
         if not self.is_same_path or (not self.is_same_limit or limit_range == False):
             self.inference_state = None
+            self.loaded_frames = None
 
         # If same name, increase index by one to avoid ovewrwriting 
         # TODO implement maybe a folder scanning to avoid rewriting with new instances of the runner
@@ -243,83 +258,86 @@ class MLRunner(object):
 
         ## Execute model
         try:
-            self.frame_names = self.get_frame_list(path_to_sequence, shot_name, delimiter)
-            self.ml_logger.info(f'Frame list fetched!')
-            
+            if os.path.isdir(path_to_sequence):           
+                self.frame_names = get_frame_list(path_to_sequence, shot_name, delimiter)
+                self.ml_logger.info(f'Frames list fetched!')
+            else:
+                raise ValueError(f'The path {path_to_sequence} doesnt seem to exists!')
+
+            # If we limit the range we need to change frame index
+            if limit_range:
+                self.frame_names = self.frame_names[limit_range[0]:limit_range[1]]
+                frame_idx -= limit_range[0]
+
+            try:
+                if not self.loaded_frames:
+                    self.loaded_frames = load_imgs_to_numpy(self.frame_names)
+                    self.ml_logger.info(f'Frames loaded!')
+                else:
+                    self.ml_logger.info(f'Using cached video!')
+            except:
+                raise ValueError('Something went wrong while loading the images to numpy.')                      
+
+            self.ml_logger.info(f'Fetching image info..')
+            try:
+                image_arr = self.loaded_frames[frame_idx]
+                H,W = get_im_width_height(image_arr)
+                self.ml_logger.info(f'Fetched image info')
+            except IndexError as e:
+                raise IndexError(f'Failed to fetch image information. Here is the frame list info: list lenght: {len(self.frame_names)} frame index: {frame_idx}')
+
             if use_gdino:
-                gdino_path = [i for i in sys.path if 'dino' in i.lower()][0]
-                gdino_configs = os.path.join(gdino_path, self.model_configs['gdino']['config_path']).replace('\\','/')
-                gdino_checkpoint = os.path.join(gdino_path, self.model_configs['gdino']['checkpoint_path']).replace('\\','/')
-                try:
-                    image_pil = self.load_pil(os.path.join(path_to_sequence, self.frame_names[frame_idx]).replace('\\','/'))
-                except IndexError as e:
-                    raise IndexError(' Could not load image for bbox detection, please check that your frame_idx is correct. Right now I have {frame_idx}')
-                H,W = self.get_im_width_height(image_pil, self.is_pil)
                 box_threshold = 0.35
                 text_threshold = 0.25
                 if self.use_florence:
-                    gdino = self.florence_definition(image_pil, id_class, box_threshold, text_threshold, H,W)
+                    gdino = self.florence_definition(image_arr, id_class, box_threshold, text_threshold, H,W)
                 else:
-                    gdino = self.gdino_definition(image_pil, gdino_configs, gdino_checkpoint, id_class, box_threshold, text_threshold, H,W)
+                    gdino = self.gdino_definition(image_arr, id_class, box_threshold, text_threshold, H,W)
                 bbox, pred_phrases = gdino.run()
                 self.ml_logger.info(f'BBox fetched!')
 
             else:
                 # If we're not using a model like gdino/florence we need to ensure that pred phrases is set to a list == to the bbox indices
                 pred_phrases = range(len(bbox))
-
-                # Similarly, we need to read the image to fetch H,W so that we can output the mask at the right resolution
-                self.ml_logger.info(f'Fetching image info..')
-                try:
-                    image_pil = self.load_pil(os.path.join(path_to_sequence, self.frame_names[frame_idx]).replace('\\','/'))
-                    H,W = self.get_im_width_height(image_pil, self.is_pil)
-                    self.ml_logger.info(f'Fetched image info')
-                except IndexError as e:
-                    raise IndexError(f'Failed to fetch image information. Here is the frame list info: list lenght: {len(self.frame_names)} frame index: {frame_idx}')
             
             if model_to_run == 'sam':
                 print('\n\n')
 
                 self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
-                self.model = self.sam_definition(model_configs['checkpoint_path'],
-                                                        model_configs['config_path'],
-                                                        path_to_sequence, 
-                                                        self.frame_names,
-                                                        render_to,
-                                                        render_name,
-                                                        bbox, 
-                                                        frame_idx, 
-                                                        first_frame_sequence,
-                                                        pred_phrases, 
-                                                        shot_name,
-                                                        self.ml_logger,
-                                                        uuid,
-                                                        H,
-                                                        W,
-                                                        use_gdino, 
-                                                        limit_range, 
-                                                        delimiter)
+                self.model = self.sam_definition(path_to_sequence, 
+                                                 self.loaded_frames,
+                                                 render_to,
+                                                 render_name,
+                                                 bbox, 
+                                                 frame_idx, 
+                                                 first_frame_sequence,
+                                                 pred_phrases, 
+                                                 shot_name,
+                                                 self.ml_logger,
+                                                 uuid,
+                                                 H,
+                                                 W,
+                                                 use_gdino, 
+                                                 limit_range, 
+                                                 delimiter)
                 self.inference_state = self.model.run()
                 self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 
             elif model_to_run == 'dam':
                 self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
-                self.model = self.dam_definition(model_configs['checkpoint_path'],
-                                                        first_frame_sequence,
-                                                        path_to_sequence, 
-                                                        self.frame_names,
-                                                        render_to,
-                                                        render_name,
-                                                        bbox, 
-                                                        frame_idx, 
-                                                        pred_phrases, 
-                                                        shot_name,
-                                                        self.ml_logger,
-                                                        uuid,
-                                                        H,
-                                                        W,
-                                                        use_gdino,
-                                                        limit_range)
+                self.model = self.dam_definition(first_frame_sequence,
+                                                 self.loaded_frames,
+                                                 render_to,
+                                                 render_name,
+                                                 bbox, 
+                                                 frame_idx, 
+                                                 pred_phrases, 
+                                                 shot_name,
+                                                 self.ml_logger,
+                                                 uuid,
+                                                 H,
+                                                 W,
+                                                 use_gdino)
                 self.model.run()
                 self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 

@@ -19,8 +19,8 @@ import os
 
 
 class run_gdino(object):
-    def __init__(self,image_pil, model_config_path, model_checkpoint_path, caption, box_threshold, text_threshold = None, with_logits = True, is_pil = True, H = None, W = None):
-        self.image_pil = image_pil
+    def __init__(self,image, model_config_path, model_checkpoint_path, caption, box_threshold, text_threshold = None, with_logits = True, H = None, W = None):
+        self.image = image
         self.model_config_path = model_config_path
         self.model_checkpoint_path = model_checkpoint_path
 
@@ -33,7 +33,6 @@ class run_gdino(object):
         self.box_threshold = box_threshold
         self.text_threshold = text_threshold
         self.with_logits = with_logits
-        self.is_pil = is_pil
         self.H = H
         self.W = W
 
@@ -49,9 +48,7 @@ class run_gdino(object):
         # load image
 
         # If image isnt PIL we need to convert it to PIL as its simpler than going edit every file in gdino.
-        if not self.is_pil:
-            self.image_pil = Image.fromarray(np.uint8(self.image_pil * 255))
-            self.is_pil = True
+        image = Image.fromarray(np.uint8(self.image * 255))
 
         transform = T.Compose(
             [
@@ -61,7 +58,7 @@ class run_gdino(object):
             ]
         )
 
-        image, _ = transform(self.image_pil, None)  # 3, h, w
+        image, _ = transform(image, None)  # 3, h, w
         return image
 
     def load_model(self, cpu_only=False):
@@ -166,10 +163,7 @@ class run_gdino(object):
 
         H,W = (self.H, self.W)
         if self.H == None or self.W == None:
-            if self.is_pil:
-                H,W = (self.image_pil.height, self.image_pil.width)
-            else:
-                H,W,C = self.image_pil.shape
+            H,W,C = self.image.shape
 
         # run model
         self.boxes_filt, self.pred_phrases = self.get_grounding_output(False, None)

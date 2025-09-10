@@ -16,3 +16,13 @@ def calc_progress(boxes_filt, id, step, total_step):
         #TODO This needs fixing as it can go above 100%
         value = math.ceil(((step * id) / (total_step * boxes_filt)) * 100)
         return f'{value}%'
+
+def check_for_abort_render(render_dir, shot_name, uuid, logger, is_tracking = False):
+    is_abort = os.path.isfile(os.path.join(render_dir,'cancel_render').replace('\\','/'))
+    if is_abort and not is_tracking:
+        os.remove(os.path.join(render_dir,'cancel_render').replace('\\','/'))
+    if is_abort:
+        logger.info('Interrupting render as we detected an abort request from the user')
+        write_stats_file(render_dir, shot_name, uuid, '0%', '0%', 'False', 'True')
+    return is_abort
+
