@@ -100,7 +100,7 @@ class run_rgb2x(object):
                 ).images[0][0]
 
                 # Check for abort but dont delete file
-                if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking = False):
+                if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking = True):
                     break
 
                 filename = f'{self.render_name}_{self.name_idx}_{aov_name}'
