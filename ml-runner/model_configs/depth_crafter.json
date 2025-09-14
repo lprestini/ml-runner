@@ -1,0 +1,4 @@
+{
+    "pretrain_path": "../third_party_models/depth_crafter/checkpoints/stable-video-diffusion-img2vid-xt/",
+    "unet_path": "../third_party_models/depth_crafter/checkpoints/DepthCrafter/"
+}

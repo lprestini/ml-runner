@@ -37,14 +37,15 @@ Main features:
 - Load images back into Nuke
 
 Implemented models:
-- SAM2 (Meta)
-- DAM4SAM
-- Florence2  <- Disabled by default as it takes 2 minutes to activate when starting the server, if you want to use it enabled it in the server code.
-- Groundind dino
+- [SAM2](https://github.com/facebookresearch/sam2)
+- [DAM4SAM](https://github.com/jovanavidenovic/DAM4SAM)
+- [Florence2](https://huggingface.co/microsoft/Florence-2-large)  <- Disabled by default as it takes 2 minutes to activate when starting the server, if you want to use it enabled it in the server code.
+- [GroundindDINO](https://github.com/IDEA-Research/GroundingDINO)
+- [DepthCrafter](https://github.com/Tencent/DepthCrafter)
 
 Known issues: 
 - Image loading into Nuke is a bit hacky - it places them quite randomly in the script. 
-- If using Gdino/Florence - it only loads one of the created masks to nuke, instead of all the created masks
+- If using GDINO/Florence - it only loads one of the created masks to nuke, instead of all the created masks
 - Supports only EXR and PNG. 
 - Haven't implemented error reporting to Nuke 
 - Progress reporting to node UI is buggy - to see refresh you need to close reopen the node properties
@@ -81,8 +82,8 @@ Then add the following to your init.py
 
 `nuke.pluginAddPath('/path/to/ml-runner/ml-runner/nuke/')`
 
-# Installing Grounding Dino (This is not required for the basic functionality. It's only used if you want to use semantic detection)
-To install GroundindDino, follow the instructions on their page here: https://github.com/IDEA-Research/GroundingDINO
+# Installing GroundingDINO (This is not required for the basic functionality. It's only used if you want to use semantic detection)
+To install GroundindDINO, follow the instructions on their page here: https://github.com/IDEA-Research/GroundingDINO
 Or try follow these. 
 If you follow the one on their repository **MAKE SURE TO REMOVE TORCH & TORCHVISION** from their pip requirements.
 
@@ -135,5 +136,22 @@ git clone https://huggingface.co/microsoft/Florence-2-large
 ```
 
 **REMEMBER TO USE THIS YOU NEED TO ENABLE IT IN THE SERVER CODE**
+
+# Installing DepthCrafter
+
+To install DepthCrafter please run the following comands. 
+Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
+
+```
+cd third_party_models/depth_crafter
+mkdir checkpoints
+cd checkpoints
+git lfs install
+git clone https://huggingface.co/tencent/DepthCrafter
+git clone https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt
+```
+
+You're all set now! Have fun!
+
 
 

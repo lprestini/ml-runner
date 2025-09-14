@@ -21,12 +21,15 @@ sys.path.append(base_path.replace('\\','/'))
 sys.path.append(os.path.join(base_path, 'edited_sam2/sam2/configs/').replace('\\','/'))
 sys.path.append(os.path.join(base_path, 'edited_sam2/sam2/').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'edited_dam4sam/dam4sam_2').replace('\\','/'))
+sys.path.append(os.path.join(base_path,'edited_dam4sam/dam4sam_2').replace('\\','/'))
+sys.path.append(os.path.join(base_path,'depth_crafter/').replace('\\','/'))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs/damsam2').replace('\\','/'))
 
 from model_scripts.run_sam import runSAM2
 from model_scripts.run_florence import run_florence
 from model_scripts.run_dam4sam import runDAM4SAM
 from model_scripts.run_gdino import run_gdino
+from model_scripts.run_depth_crafter import run_depth_crafter
 from transformers import AutoProcessor, AutoModelForCausalLM 
 
 
@@ -62,7 +65,8 @@ class MLRunner(object):
         self.supported_models = {'sam':runSAM2,
                                  'florence':run_florence,
                                  'dam': runDAM4SAM,
-                                 'gdino': run_gdino}
+                                 'gdino': run_gdino,
+                                 'depth_crafter' : run_depth_crafter} 
         if use_florence:
             self.ml_logger.info('Loading florence model, this will take a couple of minutes')
             self.init_florence()
@@ -184,6 +188,12 @@ class MLRunner(object):
         gdino = self.supported_models['gdino'](image_arr, gdino_configs, gdino_checkpoint, caption, box_threshold, text_threshold, with_logits, H,W)
         return gdino
     
+    def depth_crafter_definitition(self, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, H = None, W = None, name_idx = 0, delimiter = '.'):
+        unet_path = os.path.abspath(self.model_configs['depth_crafter']['unet_path']).replace('\\','/')
+        pretrain_path = os.path.abspath(self.model_configs['depth_crafter']['pretrain_path']).replace('\\','/')
+        depth_crafter = self.supported_models['depth_crafter'](pretrain_path, unet_path, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, H = H, W = W, name_idx = name_idx, delimiter = delimiter)
+        return depth_crafter
+
     def clear_sam_memory(self):
         if not self.is_same_path:
             try:
@@ -300,10 +310,8 @@ class MLRunner(object):
                 # If we're not using a model like gdino/florence we need to ensure that pred phrases is set to a list == to the bbox indices
                 pred_phrases = range(len(bbox))
             
+            self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
             if model_to_run == 'sam':
-                print('\n\n')
-
-                self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
                 self.model = self.sam_definition(path_to_sequence, 
                                                  self.loaded_frames,
                                                  render_to,
@@ -321,10 +329,9 @@ class MLRunner(object):
                                                  limit_range, 
                                                  delimiter)
                 self.inference_state = self.model.run()
-                self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 
             elif model_to_run == 'dam':
-                self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
+                
                 self.model = self.dam_definition(first_frame_sequence,
                                                  self.loaded_frames,
                                                  render_to,
@@ -339,7 +346,20 @@ class MLRunner(object):
                                                  W,
                                                  use_gdino)
                 self.model.run()
-                self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
+
+            elif model_to_run == 'depth_crafter':
+                self.model = self.depth_crafter_definitition(self.loaded_frames, 
+                                                             render_to,
+                                                             render_name,
+                                                             first_frame_sequence,
+                                                             shot_name,
+                                                             self.ml_logger,
+                                                             uuid,
+                                                             H, W,
+                                                             self.name_idx,
+                                                             delimiter)
+                self.model.run()
+            self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 
         except (IndexError,ValueError,TypeError, KeyError) as e:
             if isinstance(e, KeyError):

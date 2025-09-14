@@ -109,9 +109,15 @@ frame_idx = int(node['frame_idx'].value()) #ensure_legal_frame(int(node['frame_i
 is_correct_extension = any(shot_name.split('.')[-1].lower() in i for i in ('.png','.jpg', '.jpeg', '.exr'))
 path_to_sequence_exists = os.path.isdir(node['path_to_sequence'].value())
 is_node_connected = len(node.dependencies()) > 0
-is_frame_legal = frame_idx >= int(node.firstFrame()) and frame_idx <= int(node.lastFrame())
-if node['use_limit'].value():
-    is_frame_legal = frame_idx >= int(node['limit_first'].value()) and frame_idx <= int(node['limit_last'].value())
+is_segmentation = node['model_to_run'].value() in ('sam','dam')
+if is_segmentation:
+    is_frame_legal = frame_idx >= int(node.firstFrame()) and frame_idx <= int(node.lastFrame())
+    if node['use_limit'].value():
+        is_frame_legal = frame_idx >= int(node['limit_first'].value()) and frame_idx <= int(node['limit_last'].value())
+else:
+    frame_idx = int(node.firstFrame()) if not node['use_limit'].value() else int(node['limit_first'].value()) 
+    is_frame_legal = True
+
 config_dir_exists = os.path.isdir(config_save_directory) 
 is_server_running = os.path.isfile(os.path.join(config_save_directory,'.server_is_running.tmp').replace('\\','/')) 
 
