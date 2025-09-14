@@ -85,9 +85,10 @@ def load_bg_render(node, path, print_to_terminal = True):
 
         # Load rendered element in nuke
         if timer_completed and not error and not cancelled:
-            shot = [i for i in nuke.getFileNameList(os.path.dirname(path)) if filename in i]
-            if shot:
-                setup_read(os.path.join(os.path.dirname(path),shot[0]).replace('\\','/'), node)
+            for _file in filename:
+                shot = [i for i in nuke.getFileNameList(os.path.dirname(path)) if _file in i]
+                if shot:
+                    setup_read(os.path.join(os.path.dirname(path),shot[0]).replace('\\','/'), node)
 
 def padding_to_num(padded_name, delimiter, ref_frame):
     pad, ext = os.path.splitext(padded_name)
@@ -154,6 +155,11 @@ if all_good:
     config['first_frame_sequence'] = int(node.firstFrame())
     config['limit_range'] = node['use_limit'].value()
     config['delimiter'] = delimiter
+    config['colourspace'] = 'linear' if node['model_to_run'].value() == 'rgb2x' else 'srgb'
+    config['passes'] = ['albedo','roughness','metallic','normal','irradiance']
+    if not node['all_passes'].value():
+        pass_knobs = config['passes']
+        config['passes'] = [i for i in pass_knobs if node[i].value() == True]
 
     # Not implemented yet
     config['multisequence'] = False

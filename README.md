@@ -42,6 +42,7 @@ Implemented models:
 - [Florence2](https://huggingface.co/microsoft/Florence-2-large)  <- Disabled by default as it takes 2 minutes to activate when starting the server, if you want to use it enabled it in the server code.
 - [GroundindDINO](https://github.com/IDEA-Research/GroundingDINO)
 - [DepthCrafter](https://github.com/Tencent/DepthCrafter)
+- [RGB2X](https://github.com/zheng95z/rgbx/tree/main)
 
 Known issues: 
 - Image loading into Nuke is a bit hacky - it places them quite randomly in the script. 
@@ -151,7 +152,15 @@ git clone https://huggingface.co/tencent/DepthCrafter
 git clone https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt
 ```
 
-You're all set now! Have fun!
+# Installing RGB2X 
 
+To install RGB2X please run the following commands 
+Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
 
-
+```
+cd third_party_models/rgb2x/
+mkdir checkpoints
+cd checkpoints
+git lfs install
+git clone https://huggingface.co/zheng95z/rgb-to-x
+```

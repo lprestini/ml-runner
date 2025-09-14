@@ -14,7 +14,16 @@ def convert_linear_to_srgb(_img):
     cpu.applyRGB(_img)
     return _img
 
-def load_imgs_to_numpy(frame_to_load, clip = True, rgb_only = True):
+def convert_srgb_to_linear(_img):
+    config = OCIO.Config.CreateFromFile(os.environ['MLRUNNER_OCIOCONFIG_PATH'])
+    OCIO.SetCurrentConfig(config)
+    config = OCIO.GetCurrentConfig()
+    ocioprocessor = config.getProcessor('srgb', 'linear')
+    cpu = ocioprocessor.getDefaultCPUProcessor()
+    cpu.applyRGB(_img)
+    return _img
+
+def load_imgs_to_numpy(frame_to_load, clip = True, rgb_only = True, to_srgb = True):
     images = []
     for idx,i in tqdm(enumerate(frame_to_load), total=len(frame_to_load), desc = 'Loading frames'):
         frame = i.replace('\\','/')
@@ -22,10 +31,15 @@ def load_imgs_to_numpy(frame_to_load, clip = True, rgb_only = True):
             image = np.array(Image.open(frame).convert('RGB'))
             if image.dtype == np.uint8:
                 image = image.astype(np.float64) / 255.0
+
+            if not to_srgb:
+                image = image.astype(np.float32)
+                image = convert_srgb_to_linear(image)
         else:
             image = cv2.imread(frame, cv2.IMREAD_UNCHANGED)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            image = convert_linear_to_srgb(image)
+            if to_srgb:
+                image = convert_linear_to_srgb(image)
             if clip:
                 image = np.clip(image, 0,1)
 
