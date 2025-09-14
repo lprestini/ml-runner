@@ -1,0 +1,3 @@
+{
+    "pretrain_path": "../third_party_models/rgb2x/checkpoints/rgb-to-x/"
+}

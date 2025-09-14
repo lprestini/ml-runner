@@ -21,12 +21,17 @@ sys.path.append(base_path.replace('\\','/'))
 sys.path.append(os.path.join(base_path, 'edited_sam2/sam2/configs/').replace('\\','/'))
 sys.path.append(os.path.join(base_path, 'edited_sam2/sam2/').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'edited_dam4sam/dam4sam_2').replace('\\','/'))
+sys.path.append(os.path.join(base_path,'edited_dam4sam/dam4sam_2').replace('\\','/'))
+sys.path.append(os.path.join(base_path,'depth_crafter/').replace('\\','/'))
+sys.path.append(os.path.join(base_path,'rgb2x/').replace('\\','/'))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs/damsam2').replace('\\','/'))
 
 from model_scripts.run_sam import runSAM2
 from model_scripts.run_florence import run_florence
 from model_scripts.run_dam4sam import runDAM4SAM
 from model_scripts.run_gdino import run_gdino
+from model_scripts.run_depth_crafter import run_depth_crafter
+from model_scripts.run_rgb2x import run_rgb2x
 from transformers import AutoProcessor, AutoModelForCausalLM 
 
 
@@ -48,6 +53,7 @@ class MLRunner(object):
         self.is_same_path = None
         self.inference_state = None
         self.is_same_name = None
+        self.prev_colourspace = None
         self.name_idx = 0
         self.is_pil = True
         self.loaded_frames = None
@@ -62,7 +68,9 @@ class MLRunner(object):
         self.supported_models = {'sam':runSAM2,
                                  'florence':run_florence,
                                  'dam': runDAM4SAM,
-                                 'gdino': run_gdino}
+                                 'gdino': run_gdino,
+                                 'depth_crafter' : run_depth_crafter, 
+                                 'rgb2x' : run_rgb2x} 
         if use_florence:
             self.ml_logger.info('Loading florence model, this will take a couple of minutes')
             self.init_florence()
@@ -121,7 +129,11 @@ class MLRunner(object):
     def read_job_config(self, filename):
         if filename.endswith('json'):
             with open(filename, 'r') as f:
-                self.job_config = json.load(f)
+                try:
+                    self.job_config = json.load(f)
+                except json.decoder.JSONDecodeError as e:
+                    time.sleep(1)
+                    self.job_config = json.load(f)
         return self.job_config
 
     def read_model_configs(self):
@@ -184,6 +196,17 @@ class MLRunner(object):
         gdino = self.supported_models['gdino'](image_arr, gdino_configs, gdino_checkpoint, caption, box_threshold, text_threshold, with_logits, H,W)
         return gdino
     
+    def depth_crafter_definitition(self, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, H = None, W = None, name_idx = 0, delimiter = '.'):
+        unet_path = os.path.abspath(self.model_configs['depth_crafter']['unet_path']).replace('\\','/')
+        pretrain_path = os.path.abspath(self.model_configs['depth_crafter']['pretrain_path']).replace('\\','/')
+        depth_crafter = self.supported_models['depth_crafter'](pretrain_path, unet_path, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, H = H, W = W, name_idx = name_idx, delimiter = delimiter)
+        return depth_crafter
+    
+    def rgbx2_definitition(self, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, passes, H = None, W = None, name_idx = 0, delimiter = '.'):
+        pretrain_path = os.path.abspath(self.model_configs['rgb2x']['pretrain_path']).replace('\\','/')
+        rgb2x = self.supported_models['rgb2x'](pretrain_path, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, passes, H = H, W = W, name_idx = name_idx, delimiter = delimiter)
+        return rgb2x
+
     def clear_sam_memory(self):
         if not self.is_same_path:
             try:
@@ -192,11 +215,12 @@ class MLRunner(object):
                 self.ml_logger.error('tried to release model from memory but failed')
             self.model = None
 
-    def keep_track(self, frame_idx, path, limit, render_name):
+    def keep_track(self, frame_idx, path, limit, render_name, colourspace):
         self.prev_idx = frame_idx
         self.prev_path = path
         self.prev_limit = limit
         self.prev_render_name = render_name
+        self.prev_colourspace = colourspace
 
     def run_model_based_on_cfg(self, filename):
         """Function to run a model based on a config file"""
@@ -218,6 +242,8 @@ class MLRunner(object):
         limit_first = config['limit_first']
         limit_last = config['limit_last']
         delimiter = config['delimiter']
+        colourspace = config['colourspace']
+        is_srgb = colourspace == 'srgb'
         uuid = config['uuid']
         limit_range = (int(limit_first), int(limit_last)) if limit_range else limit_range
         self.is_pil = False if '.exr' in shot_name.lower() else True
@@ -237,9 +263,10 @@ class MLRunner(object):
         self.is_same_path = path_to_sequence == self.prev_path
         self.is_same_name = frame_idx == self.prev_idx and render_name == self.prev_render_name
         self.is_same_limit = limit_range == self.prev_limit
+        self.is_same_colourspace = colourspace == self.prev_colourspace
 
         # If path or limit is not the same, clear inference state
-        if not self.is_same_path or (not self.is_same_limit or limit_range == False):
+        if not self.is_same_path or (not self.is_same_limit or limit_range == False) or not self.is_same_colourspace:
             self.inference_state = None
             self.loaded_frames = None
 
@@ -251,7 +278,7 @@ class MLRunner(object):
             self.name_idx = 0
 
         # Set prev frame idx and prev path, so that we can keep track of what we are doing
-        self.keep_track(frame_idx, path_to_sequence, limit_range, render_name)
+        self.keep_track(frame_idx, path_to_sequence, limit_range, render_name, colourspace)
 
         H,W = None, None
         self.ml_logger.info(f'Shot {shot_name} received!')
@@ -271,7 +298,7 @@ class MLRunner(object):
 
             try:
                 if not self.loaded_frames:
-                    self.loaded_frames = load_imgs_to_numpy(self.frame_names)
+                    self.loaded_frames = load_imgs_to_numpy(self.frame_names, to_srgb = is_srgb)
                     self.ml_logger.info(f'Frames loaded!')
                 else:
                     self.ml_logger.info(f'Using cached video!')
@@ -300,10 +327,8 @@ class MLRunner(object):
                 # If we're not using a model like gdino/florence we need to ensure that pred phrases is set to a list == to the bbox indices
                 pred_phrases = range(len(bbox))
             
+            self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
             if model_to_run == 'sam':
-                print('\n\n')
-
-                self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
                 self.model = self.sam_definition(path_to_sequence, 
                                                  self.loaded_frames,
                                                  render_to,
@@ -321,10 +346,9 @@ class MLRunner(object):
                                                  limit_range, 
                                                  delimiter)
                 self.inference_state = self.model.run()
-                self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 
             elif model_to_run == 'dam':
-                self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
+                
                 self.model = self.dam_definition(first_frame_sequence,
                                                  self.loaded_frames,
                                                  render_to,
@@ -339,7 +363,34 @@ class MLRunner(object):
                                                  W,
                                                  use_gdino)
                 self.model.run()
-                self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
+
+            elif model_to_run == 'depth_crafter':
+                self.model = self.depth_crafter_definitition(self.loaded_frames, 
+                                                             render_to,
+                                                             render_name,
+                                                             first_frame_sequence,
+                                                             shot_name,
+                                                             self.ml_logger,
+                                                             uuid,
+                                                             H, W,
+                                                             self.name_idx,
+                                                             delimiter)
+                self.model.run()
+
+            elif model_to_run == 'rgb2x':
+                self.model = self.rgbx2_definitition(self.loaded_frames, 
+                                                     render_to,
+                                                     render_name,
+                                                     first_frame_sequence,
+                                                     shot_name,
+                                                     self.ml_logger,
+                                                     uuid,
+                                                     config['passes'],
+                                                     H, W,
+                                                     self.name_idx,
+                                                     delimiter)
+                self.model.run()
+            self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 
         except (IndexError,ValueError,TypeError, KeyError) as e:
             if isinstance(e, KeyError):

@@ -100,7 +100,7 @@ class runSAM2(object):
         # Get total num frames for progress tracking purposes
         total_steps = self.inference_state['num_frames']
         total_boxes = len(self.boxes_filt)
-
+        filenames = []
         for idx, b in enumerate(self.boxes_filt):
             # Check for abort render file at major break points
             if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
@@ -168,7 +168,7 @@ class runSAM2(object):
             if self.render:
                 if not os.path.isdir(self.render_dir):
                     os.mkdir(self.render_dir)
-                    
+
             # render the segmentation results every few frames
             self.vis_frame_stride = 100
             self.vis_frame_stride = self.vis_frame_stride if not self.render else 1# interval to check mask set to 0 to render whole sequence
@@ -194,11 +194,13 @@ class runSAM2(object):
                             name = f'{filename}_{str(frame_n)}.png'
                         
                         cv2.imwrite(os.path.join(self.render_dir, name).replace('\\','/'), mask_img_format)
-                        
+
                         # Compute rendering progress
                         if out_frame_idx % 10 == 0 or (out_frame_idx + 1 == total_steps):
+                            filenames.append(filename)
+                            filenames = list(set(filenames))
                             render_progress = calc_progress(total_boxes, idx + 1, out_frame_idx + 1, total_steps)
-                            write_stats_file(self.render_dir, filename, self.uuid, render_progress, track_progress, False)
+                            write_stats_file(self.render_dir, filenames, self.uuid, render_progress, track_progress, False)
                             
                         #  We check for cancel file but not delete file 
                         if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):

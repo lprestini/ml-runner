@@ -55,6 +55,7 @@ class runDAM4SAM(object):
         self.track_progress = 0
         self.is_pil = not shot_name.endswith('.exr')
         self.is_abort = False
+        self.filenames = []
 
         ##Debug paramters
         self.render = True ## This is for debug only
@@ -78,6 +79,7 @@ class runDAM4SAM(object):
         indexed = enumerate(frames, start = ann_fram_idx) if is_forward else reversed(list(enumerate(frames, start = 0))) 
         total_steps = len(sorted_frames)
         total_boxes = len(self.boxes_filt)
+
         for iidx, img in tqdm(indexed, total = len(frames), desc = f'Render {direction}'):
             # Check for interrupt file without deleting file 
             if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
@@ -103,14 +105,18 @@ class runDAM4SAM(object):
             step = ((iidx + 1 ) - ann_fram_idx) + prev_track_progress if direction == 'forward' else ((ann_fram_idx - (iidx + 1)) + 1 ) + prev_track_progress
 
             if iidx % 10 == 0:
+                self.filenames.append(name_no_frame)
+                self.filenames = list(set(self.filenames))
                 track_progress = calc_progress(total_boxes, idx + 1, step, total_steps)
-                write_stats_file(self.render_dir, name_no_frame, self.uuid, track_progress, track_progress, False)
+                write_stats_file(self.render_dir, self.filenames, self.uuid, track_progress, track_progress, False)
 
         # And here we delete
         if not check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
+            self.filenames.append(name_no_frame)
+            self.filenames = list(set(self.filenames))
             step = ((iidx + 1 ) - ann_fram_idx) + prev_track_progress if direction == 'forward' else ((ann_fram_idx - (iidx + 1)) + 1 ) + prev_track_progress
             track_progress = calc_progress(total_boxes, idx + 1, step, total_steps)
-            write_stats_file(self.render_dir, name_no_frame, self.uuid, track_progress, track_progress, False)
+            write_stats_file(self.render_dir, self.filenames, self.uuid, track_progress, track_progress, False)
             self.track_progress = step
         else:
             self.is_abort = True
