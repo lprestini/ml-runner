@@ -62,7 +62,7 @@ class runSAM2(object):
         self.inference_state = inference_state
         self.name_idx = name_idx
         self.delimiter = delimiter
-        self.is_limit = len(self.numpy_img_list) == 0 and self.limit_range != None
+        self.is_limit = self.limit_range != None
 
         ##Debug paramters
         self.render = True ## This is for debug only
@@ -89,7 +89,7 @@ class runSAM2(object):
 
         # If we limited the range, the annotation frame will have a different index
         # This is only used if we are not reading the preloaded frames
-        if self.is_limit:
+        if self.is_limit and len(self.numpy_img_list) == 0:
             self.ann_frame_idx -= self.limit_range[0]
 
         # Flip boxes if they're coming from Nuke
@@ -101,6 +101,7 @@ class runSAM2(object):
         total_steps = self.inference_state['num_frames']
         total_boxes = len(self.boxes_filt)
         filenames = []
+
         for idx, b in enumerate(self.boxes_filt):
             # Check for abort render file at major break points
             if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
@@ -208,5 +209,9 @@ class runSAM2(object):
                     # And we delete the file here
                     if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
                         break
-                    
+        
+        if len(self.boxes_filt) == 0:
+            write_stats_file(self.render_dir, [''], self.uuid, '100%', '100%', False)
+            self.logger.info('No bbox found. Please try another word')
+
         return self.inference_state
