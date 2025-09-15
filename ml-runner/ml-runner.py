@@ -295,7 +295,6 @@ class MLRunner(object):
             if limit_range:
                 self.frame_names = self.frame_names[limit_range[0]:limit_range[1]]
                 frame_idx -= limit_range[0]
-
             try:
                 if not self.loaded_frames:
                     self.loaded_frames = load_imgs_to_numpy(self.frame_names, to_srgb = is_srgb)
@@ -365,6 +364,8 @@ class MLRunner(object):
                 self.model.run()
 
             elif model_to_run == 'depth_crafter':
+                if limit_range:
+                    first_frame_sequence += limit_range[0]
                 self.model = self.depth_crafter_definitition(self.loaded_frames, 
                                                              render_to,
                                                              render_name,
@@ -378,6 +379,8 @@ class MLRunner(object):
                 self.model.run()
 
             elif model_to_run == 'rgb2x':
+                if limit_range:
+                    first_frame_sequence += limit_range[0]
                 self.model = self.rgbx2_definitition(self.loaded_frames, 
                                                      render_to,
                                                      render_name,
