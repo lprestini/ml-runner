@@ -24,6 +24,7 @@ sys.path.append(os.path.join(base_path,'edited_dam4sam/dam4sam_2').replace('\\',
 sys.path.append(os.path.join(base_path,'edited_dam4sam/dam4sam_2').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'depth_crafter/').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'rgb2x/').replace('\\','/'))
+sys.path.append(os.path.join(base_path,'co-tracker/').replace('\\','/'))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs/damsam2').replace('\\','/'))
 
 from model_scripts.run_sam import runSAM2
@@ -32,6 +33,7 @@ from model_scripts.run_dam4sam import runDAM4SAM
 from model_scripts.run_gdino import run_gdino
 from model_scripts.run_depth_crafter import run_depth_crafter
 from model_scripts.run_rgb2x import run_rgb2x
+from model_scripts.run_cotracker import run_cotracker
 from transformers import AutoProcessor, AutoModelForCausalLM 
 
 
@@ -70,7 +72,8 @@ class MLRunner(object):
                                  'dam': runDAM4SAM,
                                  'gdino': run_gdino,
                                  'depth_crafter' : run_depth_crafter, 
-                                 'rgb2x' : run_rgb2x} 
+                                 'rgb2x' : run_rgb2x,
+                                 'cotracker': run_cotracker} 
         if use_florence:
             self.ml_logger.info('Loading florence model, this will take a couple of minutes')
             self.init_florence()
@@ -207,6 +210,24 @@ class MLRunner(object):
         rgb2x = self.supported_models['rgb2x'](pretrain_path, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, passes, H = H, W = W, name_idx = name_idx, delimiter = delimiter)
         return rgb2x
 
+    def cotracker_definition(self, first_frame_sequence, numpy_img_list, render_dir, render_name, boxes_filt, grid_size, use_grid, ann_frame_idx, shot_name, logger, uuid, H = None,W = None, use_gdino = True):
+        cotracker = self.supported_models['cotracker'](self.model_configs['cotracker']['checkpoint_path'],
+                                           numpy_img_list,
+                                           render_dir,
+                                           render_name,
+                                           boxes_filt,
+                                           grid_size,
+                                           use_grid,
+                                           ann_frame_idx,
+                                           first_frame_sequence,
+                                           shot_name,
+                                           logger,
+                                           uuid,
+                                           H,
+                                           W, 
+                                           self.name_idx)
+        return cotracker
+
     def clear_sam_memory(self):
         if not self.is_same_path:
             try:
@@ -242,6 +263,8 @@ class MLRunner(object):
         limit_first = config['limit_first']
         limit_last = config['limit_last']
         delimiter = config['delimiter']
+        use_grid = config['use_grid']
+        grid_size = config['grid_size']
         colourspace = config['colourspace']
         is_srgb = colourspace == 'srgb'
         uuid = config['uuid']
@@ -261,12 +284,12 @@ class MLRunner(object):
 
         # Check if we are processing same footage
         self.is_same_path = path_to_sequence == self.prev_path
-        self.is_same_name = frame_idx == self.prev_idx and render_name == self.prev_render_name
+        self.is_same_name = frame_idx == self.prev_idx and render_name == self.prev_render_name            
         self.is_same_limit = limit_range == self.prev_limit
         self.is_same_colourspace = colourspace == self.prev_colourspace
 
         # If path or limit is not the same, clear inference state
-        if not self.is_same_path or (not self.is_same_limit or limit_range == False) or not self.is_same_colourspace:
+        if not self.is_same_path or not self.is_same_limit or not self.is_same_colourspace:
             self.inference_state = None
             self.loaded_frames = None
 
@@ -276,6 +299,13 @@ class MLRunner(object):
             self.name_idx += 1
         else:
             self.name_idx = 0
+
+        # Check there are no renders with same name 
+        if os.path.isdir(render_to):
+            # remove duplicate names 
+            files = list(set([os.path.splitext(os.path.splitext(f)[0])[0] for f in os.listdir(render_to) if render_name in f]))
+            if len(files) > 1:
+                self.name_idx = len(files) + 1
 
         # Set prev frame idx and prev path, so that we can keep track of what we are doing
         self.keep_track(frame_idx, path_to_sequence, limit_range, render_name, colourspace)
@@ -312,6 +342,7 @@ class MLRunner(object):
             except IndexError as e:
                 raise IndexError(f'Failed to fetch image information. Here is the frame list info: list lenght: {len(self.frame_names)} frame index: {frame_idx}')
 
+            # Get bboxes with GDINO or Florence if we want to
             if use_gdino:
                 box_threshold = 0.35
                 text_threshold = 0.25
@@ -321,11 +352,11 @@ class MLRunner(object):
                     gdino = self.gdino_definition(image_arr, id_class, box_threshold, text_threshold, H,W)
                 bbox, pred_phrases = gdino.run()
                 self.ml_logger.info(f'BBox fetched!')
-
             else:
                 # If we're not using a model like gdino/florence we need to ensure that pred phrases is set to a list == to the bbox indices
                 pred_phrases = range(len(bbox))
             
+            # Run the requested model
             self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
             if model_to_run == 'sam':
                 self.model = self.sam_definition(path_to_sequence, 
@@ -347,7 +378,6 @@ class MLRunner(object):
                 self.inference_state = self.model.run()
 
             elif model_to_run == 'dam':
-                
                 self.model = self.dam_definition(first_frame_sequence,
                                                  self.loaded_frames,
                                                  render_to,
@@ -364,6 +394,7 @@ class MLRunner(object):
                 self.model.run()
 
             elif model_to_run == 'depth_crafter':
+                # SAM and DAM manage the limit_range interanlly
                 if limit_range:
                     first_frame_sequence += limit_range[0]
                 self.model = self.depth_crafter_definitition(self.loaded_frames, 
@@ -379,6 +410,7 @@ class MLRunner(object):
                 self.model.run()
 
             elif model_to_run == 'rgb2x':
+                # SAM and DAM manage the limit_range interanlly
                 if limit_range:
                     first_frame_sequence += limit_range[0]
                 self.model = self.rgbx2_definitition(self.loaded_frames, 
@@ -393,6 +425,27 @@ class MLRunner(object):
                                                      self.name_idx,
                                                      delimiter)
                 self.model.run()
+
+            elif model_to_run == 'cotracker':
+                # SAM and DAM manage the limit_range interanlly
+                if limit_range:
+                    first_frame_sequence += limit_range[0]
+                self.model = self.cotracker_definition(first_frame_sequence,
+                                    self.loaded_frames,
+                                    render_to,
+                                    render_name,
+                                    bbox, 
+                                    grid_size,
+                                    use_grid,
+                                    frame_idx, 
+                                    shot_name,
+                                    self.ml_logger,
+                                    uuid,
+                                    H,
+                                    W,
+                                    use_gdino)
+                self.model.run()
+
             self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 
         except (IndexError,ValueError,TypeError, KeyError) as e:
@@ -410,7 +463,6 @@ class MLRunner(object):
             self.ml_logger.error('tried to release some memory but failed')
         
         return None
-
 
 class MLRunnerHandler(FileSystemEventHandler):
     def __init__(self,runner):
