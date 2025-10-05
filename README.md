@@ -43,6 +43,7 @@ Implemented models:
 - [GroundindDINO](https://github.com/IDEA-Research/GroundingDINO)
 - [DepthCrafter](https://github.com/Tencent/DepthCrafter)
 - [RGB2X](https://github.com/zheng95z/rgbx/tree/main)
+- [CoTracker3](https://github.com/facebookresearch/co-tracker)
 
 Known issues: 
 - Image loading into Nuke is a bit hacky - it places them quite randomly in the script. 
@@ -50,6 +51,9 @@ Known issues:
 - Supports only EXR and PNG. 
 - Haven't implemented error reporting to Nuke 
 - Progress reporting to node UI is buggy - to see refresh you need to close reopen the node properties
+
+The license of this repository only covers the ml-runner related code. All of the code/files in third-party-models come with the original model repository license.
+Please visit the original model repo to refer to the model licenses.  
 
 ## How to install the server 
 The server code has been tested with Linux Rocky 9 Python 3.10 PyTorch2.7 and CUDA12.8. However it should work with other CUDA versions and some other pytorch versions, depending on how far you go. 
@@ -163,4 +167,19 @@ mkdir checkpoints
 cd checkpoints
 git lfs install
 git clone https://huggingface.co/zheng95z/rgb-to-x
+```
+
+
+# Installing Co-tracker3 
+
+To install Co-tracker3 please run the following commands 
+Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
+
+```
+cd third_party_models/
+git clone https://github.com/facebookresearch/co-tracker.git
+cd co-tracker
+mkdir cotracker3
+cd cotracker3
+wget https://huggingface.co/facebook/cotracker3/resolve/main/scaled_online.pth
 ```

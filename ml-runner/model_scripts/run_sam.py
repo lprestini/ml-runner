@@ -33,7 +33,7 @@ class runSAM2(object):
                  H = None,
                  W = None,
                  use_gdino = True,
-                 limit_range = None,
+                 limit_range = False,
                  inference_state = None,
                  name_idx = 0,
                  delimiter = '.'):
@@ -62,7 +62,7 @@ class runSAM2(object):
         self.inference_state = inference_state
         self.name_idx = name_idx
         self.delimiter = delimiter
-        self.is_limit = self.limit_range != None
+        self.is_limit = self.limit_range != False
 
         ##Debug paramters
         self.render = True ## This is for debug only
