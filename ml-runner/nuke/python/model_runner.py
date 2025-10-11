@@ -180,7 +180,8 @@ delimiter = node['delimiter'].value()
 frame_idx = int(node['frame_idx'].value()) #ensure_legal_frame(int(node['frame_idx'].value()), int(node.firstFrame()), int(node.lastFrame()))
 
 # Check all is good
-is_correct_extension = any(shot_name.split('.')[-1].lower() in i for i in ('.png','.jpg', '.jpeg', '.exr'))
+is_correct_extension = any(shot_name.split('.')[-1].lower() in i for i in ('.png','.jpg', '.jpeg', '.exr', '.mov'))
+is_mov = 'mov' in os.path.splitext(shot_name)[-1].lower() 
 path_to_sequence_exists = os.path.isdir(node['path_to_sequence'].value())
 is_node_connected = len(node.dependencies()) > 0
 is_segmentation = node['model_to_run'].value() in ('sam','dam')
@@ -226,6 +227,8 @@ if all_good:
     config['render_to'] = node['render_to'].value()
     config['render_name'] = node['render_name'].value()
     config['use_gdino'] = node['use_gdino'].value()
+    config['is_mov'] = is_mov
+    config['mov_last_frame'] = int(node.lastFrame() - node.firstFrame())
     config['frame_idx'] = int(frame_idx - node.firstFrame())
     config['first_frame_sequence'] = int(node.firstFrame())
     config['limit_range'] = node['use_limit'].value()

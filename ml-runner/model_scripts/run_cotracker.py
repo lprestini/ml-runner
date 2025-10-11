@@ -42,7 +42,6 @@ class run_cotracker(object):
         self.H = H
         self.W = W
         self.name_idx = name_idx
-        print(self.name_idx)
         self.delimiter = delimiter
         
         self.predictor = CoTrackerOnlinePredictor(checkpoint=self.pretrain_path, window_len=16, v2=False).to('cuda')
@@ -250,6 +249,7 @@ class run_cotracker(object):
             original_img_list = torch.concat([torch.unsqueeze(torch.from_numpy(i), dim = 0) for i in self.numpy_img_list],dim =0)
             
             # Resize to HD 
+            ratio = 1
             if self.H > 1080 or self.W > 1920:
                 ratio = 1920 / self.W
                 new_h = int(self.H * ratio)

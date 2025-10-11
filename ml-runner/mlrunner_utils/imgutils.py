@@ -50,6 +50,22 @@ def load_imgs_to_numpy(frame_to_load, clip = True, rgb_only = True, to_srgb = Tr
         images.append(image)
     return images
 
+def load_mov_to_numpy(path_to_sequence, shot_name, last_frame, first_frame):
+    """Function to load a mov into a numpy array - it'll retrun a list of np.arrays and list bools saying if frame was laoded"""
+    images = []
+    frames = []
+    video = cv2.VideoCapture(os.path.join(path_to_sequence, shot_name))
+    video.set(cv2.CAP_PROP_POS_FRAMES, int(first_frame))
+    for f in range(last_frame):
+        succ, image = video.read()
+        if succ:
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            if image.dtype == np.uint8:
+                image = np.clip(image.astype(np.float64) / 255.0,0,1)
+            images.append(image)
+        frames.append(succ)
+    return images, frames
+
 def get_im_width_height(img, is_pil = False):
     if is_pil:
         H,W = (img.height, img.width)
