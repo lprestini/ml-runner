@@ -12,7 +12,7 @@ import cv2
 import traceback
 import argparse
 
-from mlrunner_utils.imgutils import get_im_width_height, load_imgs_to_numpy, get_frame_list
+from mlrunner_utils.imgutils import get_im_width_height, load_imgs_to_numpy, get_frame_list, load_mov_to_numpy
 
 base_path = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), 'third_party_models').replace('\\','/')
 for i in os.listdir(base_path):
@@ -52,10 +52,13 @@ class MLRunner(object):
         self.prev_path = None
         self.prev_idx = None
         self.prev_limit = None
-        self.is_same_path = None
-        self.inference_state = None
-        self.is_same_name = None
+        self.prev_extension = None
         self.prev_colourspace = None
+        self.is_same_path = None
+        self.is_same_name = None
+        self.is_same_colourspace = None
+        self.is_same_extension = None
+        self.inference_state = None
         self.name_idx = 0
         self.is_pil = True
         self.loaded_frames = None
@@ -236,12 +239,13 @@ class MLRunner(object):
                 self.ml_logger.error('tried to release model from memory but failed')
             self.model = None
 
-    def keep_track(self, frame_idx, path, limit, render_name, colourspace):
+    def keep_track(self, frame_idx, path, limit, render_name, colourspace, ext):
         self.prev_idx = frame_idx
         self.prev_path = path
         self.prev_limit = limit
         self.prev_render_name = render_name
         self.prev_colourspace = colourspace
+        self.prev_extension = ext
 
     def run_model_based_on_cfg(self, filename):
         """Function to run a model based on a config file"""
@@ -254,11 +258,14 @@ class MLRunner(object):
         multisequence = config['multisequence']
         path_to_sequence = config['path_to_sequence']
         shot_name = config['shot_name']
+        ext = os.path.splitext(shot_name)[-1].lower()
         render_to = config['render_to']
         render_name = config['render_name']
         frame_idx = int(config['frame_idx'])
         first_frame_sequence = int(config['first_frame_sequence'])
         use_gdino = config['use_gdino']
+        is_mov = config['is_mov']
+        mov_last_frame = config['mov_last_frame']
         limit_range = config['limit_range']
         limit_first = config['limit_first']
         limit_last = config['limit_last']
@@ -287,9 +294,10 @@ class MLRunner(object):
         self.is_same_name = frame_idx == self.prev_idx and render_name == self.prev_render_name            
         self.is_same_limit = limit_range == self.prev_limit
         self.is_same_colourspace = colourspace == self.prev_colourspace
+        self.is_same_extension = ext == self.prev_extension
 
         # If path or limit is not the same, clear inference state
-        if not self.is_same_path or not self.is_same_limit or not self.is_same_colourspace:
+        if not self.is_same_path or not self.is_same_limit or not self.is_same_colourspace or not self.is_same_extension:
             self.inference_state = None
             self.loaded_frames = None
 
@@ -308,16 +316,20 @@ class MLRunner(object):
                 self.name_idx = len(files) + 1
 
         # Set prev frame idx and prev path, so that we can keep track of what we are doing
-        self.keep_track(frame_idx, path_to_sequence, limit_range, render_name, colourspace)
+        self.keep_track(frame_idx, path_to_sequence, limit_range, render_name, colourspace, ext)
 
         H,W = None, None
         self.ml_logger.info(f'Shot {shot_name} received!')
 
         ## Execute model
         try:
-            if os.path.isdir(path_to_sequence):           
-                self.frame_names = get_frame_list(path_to_sequence, shot_name, delimiter)
-                self.ml_logger.info(f'Frames list fetched!')
+            if os.path.isdir(path_to_sequence):
+                # If we're not using movs we fetch all the image frames as list and limit those
+                if not is_mov:    
+                    self.frame_names = get_frame_list(path_to_sequence, shot_name, delimiter)
+                    self.ml_logger.info(f'Frames list fetched!')
+                else:
+                    self.frame_names =list(range(mov_last_frame))
             else:
                 raise ValueError(f'The path {path_to_sequence} doesnt seem to exists!')
 
@@ -326,9 +338,21 @@ class MLRunner(object):
                 self.frame_names = self.frame_names[limit_range[0]:limit_range[1]]
                 frame_idx -= limit_range[0]
             try:
-                if not self.loaded_frames:
+                if not self.loaded_frames and not is_mov:
                     self.loaded_frames = load_imgs_to_numpy(self.frame_names, to_srgb = is_srgb)
                     self.ml_logger.info(f'Frames loaded!')
+                elif not self.loaded_frames and is_mov:
+                    mov_first_frame = 0
+                    if limit_range:
+                        mov_first_frame = limit_range[0]
+                        mov_last_frame = limit_range[1]
+                    self.loaded_frames, self.frame_names = load_mov_to_numpy(path_to_sequence, shot_name, mov_last_frame, mov_first_frame)
+                    if not all(i for i in self.frame_names):
+                        failed_frames = [(i,idx) for idx,i in enumerate(self.frame_names) if not i]
+                        frames_messages = '\n' + '\n'.join(i[1] for i in failed_frames)
+                        raise ValueError(f'There was an error loading {len(failed_frames)} frames. These are the failed frames:\n{frames_messages}')
+                    else:
+                        self.ml_logger.info(f'Mov loaded!')
                 else:
                     self.ml_logger.info(f'Using cached video!')
             except:

@@ -31,7 +31,7 @@ To see how the nuke node works, simply click the below image or the [link to vid
 
 ## Current features and implemented models
 Main features:
-- EXR and PNG loading
+- EXR,PNG and MOV loading
 - Limit range (if you want to process only parts of a sequence)
 - Cancel/interrupt renders
 - Load images back into Nuke
