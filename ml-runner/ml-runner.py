@@ -483,8 +483,10 @@ class MLRunner(object):
             del pred_phrases
             if use_gdino:
                 del gdino
-        except:
+            torch.cuda.empty_cache()
+        except Exception as e:
             self.ml_logger.error('tried to release some memory but failed')
+            self.ml_logger.error(f'ERROR:{traceback.format_exc()}')
         
         return None
 

@@ -56,7 +56,7 @@ def load_mov_to_numpy(path_to_sequence, shot_name, last_frame, first_frame):
     frames = []
     video = cv2.VideoCapture(os.path.join(path_to_sequence, shot_name))
     video.set(cv2.CAP_PROP_POS_FRAMES, int(first_frame))
-    for f in range(last_frame):
+    for f in tqdm(enumerate(list(range(last_frame))), total = len(list(range(last_frame)))):
         succ, image = video.read()
         if succ:
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)

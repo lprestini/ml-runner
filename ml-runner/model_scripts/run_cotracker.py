@@ -47,8 +47,9 @@ class run_cotracker(object):
         self.predictor = CoTrackerOnlinePredictor(checkpoint=self.pretrain_path, window_len=16, v2=False).to('cuda')
 
     def pad_tensor_to_multiple16(self, x, direction = 'both'):
+        ann_idx = self.ann_frame_idx if direction == 'tail' else self.ann_frame_idx + 1
         B,C,H,W = x.shape
-        tot_pad_amount = 16 - (B % 16)
+        tot_pad_amount = 16 - ((B - ann_idx) % 16)
         pad_side_1 = tot_pad_amount // 2
         pad_side_2 = tot_pad_amount - pad_side_1
         chunk_front = torch.flip(x[:pad_side_1], dims=[0])
@@ -56,12 +57,12 @@ class run_cotracker(object):
         padded_tensor = torch.cat([chunk_front, x, chunk_end], dim = 0)
         if direction == 'head':
             chunk_front = torch.flip(x[:tot_pad_amount], dims=[0])
-            padded_tensor = torch.cat([chunk_front, x], dim = 0)
+            padded_tensor = torch.cat([chunk_front, x[:ann_idx,]], dim = 0)
             pad_side_1 = tot_pad_amount
             pad_side_2 = 0
         elif direction == 'tail':
             chunk_end = torch.flip(x[-tot_pad_amount:], dims=[0])
-            padded_tensor = torch.cat([x, chunk_end], dim = 0)
+            padded_tensor = torch.cat([x[ann_idx:, ], chunk_end], dim = 0)
             pad_side_2 = tot_pad_amount
             pad_side_1 = 0
 
@@ -177,8 +178,7 @@ class run_cotracker(object):
         stop = False
 
         # Track forward
-        fwd_frames = original_img_list[self.ann_frame_idx:]
-        fwd_frames_padded, pad_fwd_front, pad_fwd_back = self.pad_tensor_to_multiple16(fwd_frames, direction='tail')
+        fwd_frames_padded, pad_fwd_front, pad_fwd_back = self.pad_tensor_to_multiple16(original_img_list, direction='tail')
         fwd_frames_padded =self.prep_images(fwd_frames_padded)
         self.predictor(video_chunk=fwd_frames_padded, is_first_step=True, grid_size=self.grid_size, add_support_grid = True, queries = queries)
         fwd_tracks = []
@@ -202,8 +202,7 @@ class run_cotracker(object):
             if self.ann_frame_idx != 0:
                 # We need to add 1 to the reference frame so that the tracking starts on the same frame
                 # And remember to remove it later from the padding as well so that we don't have slides/overlapping frames.
-                bwd_frames = original_img_list[:self.ann_frame_idx + 1]
-                bwd_frames_padded, pad_bwd_front, pad_bwd_back = self.pad_tensor_to_multiple16(bwd_frames, direction='head')
+                bwd_frames_padded, pad_bwd_front, pad_bwd_back = self.pad_tensor_to_multiple16(original_img_list, direction='head')
                 bwd_frames_padded = torch.flip(self.prep_images(bwd_frames_padded), dims =[0,1])
                 self.predictor(video_chunk=bwd_frames_padded, is_first_step=True, grid_size=self.grid_size, add_support_grid = True, queries = queries)
                 bwd_tracks = []
@@ -225,7 +224,7 @@ class run_cotracker(object):
                     pad_bwd_front -= 1
                     
                     # Concat backward and forwrad and remove pads
-                    full_tracks = torch.cat([bwd_tracks[0], fwd_tracks[0]], dim = 1)
+                    full_tracks = torch.cat([bwd_tracks[0], fwd_tracks[-1]], dim = 1)
                     full_tracks = full_tracks[:,pad_bwd_front:-pad_fwd_back]
             else:
                 full_tracks = full_tracks[:,:-pad_fwd_back]
