@@ -269,15 +269,24 @@ if all_good:
         nukescripts.render_panel((nuke.thisNode(),), False)
 
     ## Write config
-    unique_name = str(uuid.uuid4())
-    config['uuid'] = unique_name
-    with open(os.path.join(config_save_directory, f'{unique_name}_{shot_name_no_padding}.json').replace('\\','/'), 'w') as f:
-        json.dump(config, f, indent = 4)
+    keep_going = False
+    if not node['skip_directory_checks'].value():
+        _render_dir = config['render_to']
+        if nuke.ask(f'Hey! Just checking that you are happy with the render location. This is where I am going to render your file. {_render_dir}'):
+            keep_going =True 
+    else:
+        keep_going = True
 
-    queue = node['queue'].value()
-    queue = queue + ',' + unique_name if queue != '' else unique_name
-    node['queue'].setValue(queue)
-    node_loader = Loader(node, os.path.join(config['render_to'], f'{unique_name}_render_progress.json').replace('\\','/'), is_tracker = is_tracking)
+    if keep_going:
+        unique_name = str(uuid.uuid4())
+        config['uuid'] = unique_name
+        with open(os.path.join(config_save_directory, f'{unique_name}_{shot_name_no_padding}.json').replace('\\','/'), 'w') as f:
+            json.dump(config, f, indent = 4)
+
+        queue = node['queue'].value()
+        queue = queue + ',' + unique_name if queue != '' else unique_name
+        node['queue'].setValue(queue)
+        node_loader = Loader(node, os.path.join(config['render_to'], f'{unique_name}_render_progress.json').replace('\\','/'), is_tracker = is_tracking)
 else:
     error_message = '\n'.join(error_messages[error_keys[i]] for i in errors )
     nuke.alert(f'The following errors where found. Please ensure they are all fixed prior to writing the config:\n{error_message}')
