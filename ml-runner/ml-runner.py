@@ -26,6 +26,7 @@ sys.path.append(os.path.join(base_path,'depth_crafter/').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'rgb2x/').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'co-tracker/').replace('\\','/'))
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'configs/damsam2').replace('\\','/'))
+sys.path.append(os.path.join(base_path,'depth_anything3/').replace('\\','/'))
 
 from model_scripts.run_sam import runSAM2
 from model_scripts.run_florence import run_florence
@@ -34,6 +35,7 @@ from model_scripts.run_gdino import run_gdino
 from model_scripts.run_depth_crafter import run_depth_crafter
 from model_scripts.run_rgb2x import run_rgb2x
 from model_scripts.run_cotracker import run_cotracker
+from model_scripts.run_depth_anything3 import run_depth_anything3
 from transformers import AutoProcessor, AutoModelForCausalLM 
 
 
@@ -76,7 +78,8 @@ class MLRunner(object):
                                  'gdino': run_gdino,
                                  'depth_crafter' : run_depth_crafter, 
                                  'rgb2x' : run_rgb2x,
-                                 'cotracker': run_cotracker} 
+                                 'cotracker': run_cotracker, 
+                                 'depth_anything3': run_depth_anything3,} 
         if use_florence:
             self.ml_logger.info('Loading florence model, this will take a couple of minutes')
             self.init_florence()
@@ -207,6 +210,11 @@ class MLRunner(object):
         pretrain_path = os.path.abspath(self.model_configs['depth_crafter']['pretrain_path']).replace('\\','/')
         depth_crafter = self.supported_models['depth_crafter'](pretrain_path, unet_path, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, H = H, W = W, name_idx = name_idx, delimiter = delimiter)
         return depth_crafter
+    
+    def depth_anything3_definitition(self, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, H = None, W = None, name_idx = 0, delimiter = '.'):
+        pretrain_path = os.path.abspath(self.model_configs['depth_anything3']['pretrain_path']).replace('\\','/')
+        depth_anything = self.supported_models['depth_anything3'](pretrain_path, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, H = H, W = W, name_idx = name_idx, delimiter = delimiter)
+        return depth_anything
     
     def rgbx2_definitition(self, image_arr, render_dir, render_name, first_frame_sequence, shot_name, logger, uuid, passes, H = None, W = None, name_idx = 0, delimiter = '.'):
         pretrain_path = os.path.abspath(self.model_configs['rgb2x']['pretrain_path']).replace('\\','/')
@@ -349,7 +357,7 @@ class MLRunner(object):
                     self.loaded_frames, self.frame_names = load_mov_to_numpy(path_to_sequence, shot_name, mov_last_frame, mov_first_frame)
                     if not all(i for i in self.frame_names):
                         failed_frames = [(i,idx) for idx,i in enumerate(self.frame_names) if not i]
-                        frames_messages = '\n' + '\n'.join(i[1] for i in failed_frames)
+                        frames_messages = '\n' + '\n'.join(str(i[1]) for i in failed_frames)
                         raise ValueError(f'There was an error loading {len(failed_frames)} frames. These are the failed frames:\n{frames_messages}')
                     else:
                         self.ml_logger.info(f'Mov loaded!')
@@ -468,6 +476,22 @@ class MLRunner(object):
                                     H,
                                     W,
                                     use_gdino)
+                self.model.run()
+
+            elif model_to_run == 'depth_anything3':
+                # SAM and DAM manage the limit_range interanlly
+                if limit_range:
+                    first_frame_sequence += limit_range[0]
+                self.model = self.depth_anything3_definitition(self.loaded_frames, 
+                                                             render_to,
+                                                             render_name,
+                                                             first_frame_sequence,
+                                                             shot_name,
+                                                             self.ml_logger,
+                                                             uuid,
+                                                             H, W,
+                                                             self.name_idx,
+                                                             delimiter)
                 self.model.run()
 
             self.ml_logger.info(f'shot {shot_name} saved at {render_to}')

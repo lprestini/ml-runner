@@ -2,8 +2,8 @@ Group {
  name ModelRunner1
  knobChanged "_node = nuke.thisNode()\nis_semantic = _node\[\"use_gdino\"].value()\nis_segmentation = _node\['model_to_run'].value()  in ('sam','dam')\nis_tracking = _node\['model_to_run'].value() == 'cotracker'\npasses_knobs = \['all_passes','albedo','roughness','metallic','normal','irradiance']\nsegment_knobs = \['crop_position', 'id_class','frame_idx','fetch_frame','use_gdino']\ntracker_knob = \['grid_size', 'use_grid','crop_position','frame_idx','fetch_frame']\nlimit_range_knobs = \['limit_first','limit_last']\nif _node\['use_limit'].value():\n    \[_node\[i].setVisible(True) for i in limit_range_knobs]\nelse:\n    \[_node\[i].setVisible(False) for i in limit_range_knobs]\n\nif is_segmentation:\n    if _node\['all_passes'].visible():\n        \[_node\[i].setVisible(False) for i in passes_knobs]\n    if _node\['use_grid'].visible():\n        \[_node\[i].setVisible(False) for i in tracker_knob if not i in segment_knobs]\n\n    \[_node\[i].setVisible(True) for i in segment_knobs]\n    if is_semantic: \n        _node\['crop_position'].setVisible(False)\n        _node\['id_class'].setVisible(True)\n    else:\n        _node\['crop_position'].setVisible(True)\n        _node\['id_class'].setVisible(False)\nelif is_tracking:\n    \[_node\[i].setVisible(False) for i in segment_knobs]\n    if _node\['all_passes'].visible():\n        \[_node\[i].setVisible(False) for i in passes_knobs]\n    \[_node\[i].setVisible(True) for i in tracker_knob]\n    if _node\['use_grid'].value():\n        _node\['crop_position'].setVisible(False)\n    if _node\['grid_size'].value() > _node\['max_grid_value'].value():\n        _node\['grid_size'].setValue(_node\['max_grid_value'].value())\nelse:\n    \[_node\[i].setVisible(False) for i in segment_knobs]\n    \[_node\[i].setVisible(False) for i in tracker_knob]\n    if _node\['model_to_run'].value() == 'rgb2x':\n        _node\[passes_knobs\[0]].setVisible(True)\n        if not _node\['all_passes'].value():\n            \[_node\[i].setVisible(True) for i in passes_knobs]\n        else:\n            \[_node\[i].setVisible(False) for i in passes_knobs\[1:]]\n    else:\n        \[_node\[i].setVisible(False) for i in passes_knobs]"
  selected true
- xpos -438
- ypos -104
+ xpos 2052
+ ypos 598
  addUserKnob {20 User}
  addUserKnob {26 configtext l "Server settings"}
  addUserKnob {1 config_save_directory l "Server listenting directory"}
@@ -30,7 +30,7 @@ Group {
  addUserKnob {26 text_3 l "  " T " "}
  addUserKnob {26 text_1 l "Model parameters" T "\n"}
  addUserKnob {26 text l " " -STARTLINE}
- addUserKnob {4 model_to_run l "Model to run" t "Sam - SegmentAnything2 (META)\nDAM -  DistractorAwareMemory for SAM2" M {sam dam depth_crafter rgb2x cotracker "" ""}}
+ addUserKnob {4 model_to_run l "Model to run" t "Sam - SegmentAnything2 (META)\nDAM -  DistractorAwareMemory for SAM2" M {sam dam depth_crafter depth_anything3 rgb2x cotracker "" "" "" ""}}
  addUserKnob {6 use_grid l "track everything" -STARTLINE +HIDDEN}
  addUserKnob {6 use_gdino l "Use semantic detection" t "If enabled, it will try to find in the reference frame the id class defined by the user." -STARTLINE}
  addUserKnob {3 grid_size l "grid size" t "Number of points to spawn in grid. Capped at 40x40" +HIDDEN}
