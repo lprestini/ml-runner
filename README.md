@@ -42,6 +42,7 @@ Implemented models:
 - [Florence2](https://huggingface.co/microsoft/Florence-2-large)  <- Disabled by default as it takes 2 minutes to activate when starting the server, if you want to use it enabled it in the server code.
 - [GroundindDINO](https://github.com/IDEA-Research/GroundingDINO)
 - [DepthCrafter](https://github.com/Tencent/DepthCrafter)
+- [DepthAnything3](https://github.com/ByteDance-Seed/Depth-Anything-3/tree/main)
 - [RGB2X](https://github.com/zheng95z/rgbx/tree/main)
 - [CoTracker3](https://github.com/facebookresearch/co-tracker)
 
@@ -183,3 +184,17 @@ mkdir cotracker3
 cd cotracker3
 wget https://huggingface.co/facebook/cotracker3/resolve/main/scaled_online.pth
 ```
+
+
+# Installing DepthAnything3 
+
+To install DepthAnything3 you simply need to download the weights and move thme at the base of the depth-anything3 folder in third-party-models
+
+```
+cd third_party_models/depth_anything3/
+git lfs install 
+git clone https://huggingface.co/depth-anything/DA3-GIANT
+```
+
+Important note, if you want to use other checkpoints other than the DA3-GIANT - you'll need to download the weights and edit the path in `ml-runner/ml-runner/model_configs/depth_anything3.json` to reflect what model you want to use. 
+
