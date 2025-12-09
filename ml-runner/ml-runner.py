@@ -20,6 +20,7 @@ for i in os.listdir(base_path):
 sys.path.append(base_path.replace('\\','/'))
 sys.path.append(os.path.join(base_path, 'edited_sam2/sam2/configs/').replace('\\','/'))
 sys.path.append(os.path.join(base_path, 'edited_sam2/sam2/').replace('\\','/'))
+sys.path.append(os.path.join(base_path, 'edited_sam3/sam3/').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'edited_dam4sam/dam4sam_2').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'edited_dam4sam/dam4sam_2').replace('\\','/'))
 sys.path.append(os.path.join(base_path,'depth_crafter/').replace('\\','/'))
@@ -29,6 +30,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config
 sys.path.append(os.path.join(base_path,'depth_anything3/').replace('\\','/'))
 
 from model_scripts.run_sam import runSAM2
+from model_scripts.run_sam3 import runSAM3
 from model_scripts.run_florence import run_florence
 from model_scripts.run_dam4sam import runDAM4SAM
 from model_scripts.run_gdino import run_gdino
@@ -37,7 +39,6 @@ from model_scripts.run_rgb2x import run_rgb2x
 from model_scripts.run_cotracker import run_cotracker
 from model_scripts.run_depth_anything3 import run_depth_anything3
 from transformers import AutoProcessor, AutoModelForCausalLM 
-
 
 os.environ['OPENCV_IO_ENABLE_OPENEXR']='1'
 class MLRunner(object):
@@ -48,7 +49,8 @@ class MLRunner(object):
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         self.job_config = None
         self.model_config_paths = './model_configs'
-        self.ml_logger = logging.getLogger(__name__)
+        self.ml_logger = logging.getLogger('ML_Runner')
+        self.ml_logger.setLevel('INFO')
         self.model_configs = self.read_model_configs()
         self.use_florence = use_florence#
         self.prev_path = None
@@ -56,10 +58,12 @@ class MLRunner(object):
         self.prev_limit = None
         self.prev_extension = None
         self.prev_colourspace = None
+        self.prev_sam = None
         self.is_same_path = None
         self.is_same_name = None
         self.is_same_colourspace = None
         self.is_same_extension = None
+        self.is_same_sam = None
         self.inference_state = None
         self.name_idx = 0
         self.is_pil = True
@@ -73,6 +77,7 @@ class MLRunner(object):
 
 
         self.supported_models = {'sam':runSAM2,
+                                 'sam3':runSAM3,
                                  'florence':run_florence,
                                  'dam': runDAM4SAM,
                                  'gdino': run_gdino,
@@ -177,6 +182,29 @@ class MLRunner(object):
                                            delimiter)
         return sam
     
+    def sam3_definition(self, video_dir, numpy_img_list, render_dir, render_name, boxes_filt, ann_frame_idx, first_frame_sequence, pred_phrases, shot_name, text_prompt, logger, uuid, H = None,W = None, use_gdino = True, limit_range = None, delimiter = '.'):
+        sam = self.supported_models['sam3'](self.model_configs['sam3']['checkpoint_path'],
+                                           video_dir,
+                                           numpy_img_list,
+                                           render_dir,
+                                           render_name,
+                                           boxes_filt,
+                                           ann_frame_idx,
+                                           first_frame_sequence,
+                                           pred_phrases,
+                                           shot_name,
+                                           text_prompt,
+                                           logger,
+                                           uuid,
+                                           H,
+                                           W,
+                                           use_gdino,
+                                           limit_range,
+                                           self.inference_state,
+                                           self.name_idx,
+                                           delimiter)
+        return sam
+    
     def dam_definition(self, first_frame_sequence, numpy_img_list, render_dir, render_name, boxes_filt, ann_frame_idx, pred_phrases, shot_name, logger, uuid, H = None,W = None, use_gdino = True):
         dam = self.supported_models['dam'](self.model_configs['dam']['checkpoint_path'],
                                            first_frame_sequence,
@@ -247,13 +275,14 @@ class MLRunner(object):
                 self.ml_logger.error('tried to release model from memory but failed')
             self.model = None
 
-    def keep_track(self, frame_idx, path, limit, render_name, colourspace, ext):
+    def keep_track(self, frame_idx, path, limit, render_name, colourspace, ext, model_to_run):
         self.prev_idx = frame_idx
         self.prev_path = path
         self.prev_limit = limit
         self.prev_render_name = render_name
         self.prev_colourspace = colourspace
         self.prev_extension = ext
+        self.prev_sam = model_to_run
 
     def run_model_based_on_cfg(self, filename):
         """Function to run a model based on a config file"""
@@ -262,7 +291,8 @@ class MLRunner(object):
         config = self.read_job_config(filename)
         model_to_run = config['model_to_run']
         id_class =config['id_class']
-        bbox = config['crop_position']
+        text_prompt = config['id_class'] if not '' else None
+        bbox = config['crop_position'] if config['crop_position'] else [None]
         multisequence = config['multisequence']
         path_to_sequence = config['path_to_sequence']
         shot_name = config['shot_name']
@@ -303,11 +333,15 @@ class MLRunner(object):
         self.is_same_limit = limit_range == self.prev_limit
         self.is_same_colourspace = colourspace == self.prev_colourspace
         self.is_same_extension = ext == self.prev_extension
+        self.is_same_sam = model_to_run == self.prev_sam
 
         # If path or limit is not the same, clear inference state
         if not self.is_same_path or not self.is_same_limit or not self.is_same_colourspace or not self.is_same_extension:
             self.inference_state = None
             self.loaded_frames = None
+        
+        if not self.is_same_sam:
+            self.inference_state = None
 
         # If same name, increase index by one to avoid ovewrwriting 
         # TODO implement maybe a folder scanning to avoid rewriting with new instances of the runner
@@ -324,7 +358,7 @@ class MLRunner(object):
                 self.name_idx = len(files) + 1
 
         # Set prev frame idx and prev path, so that we can keep track of what we are doing
-        self.keep_track(frame_idx, path_to_sequence, limit_range, render_name, colourspace, ext)
+        self.keep_track(frame_idx, path_to_sequence, limit_range, render_name, colourspace, ext, model_to_run)
 
         H,W = None, None
         self.ml_logger.info(f'Shot {shot_name} received!')
@@ -386,7 +420,10 @@ class MLRunner(object):
                 self.ml_logger.info(f'BBox fetched!')
             else:
                 # If we're not using a model like gdino/florence we need to ensure that pred phrases is set to a list == to the bbox indices
-                pred_phrases = range(len(bbox))
+                if not text_prompt:
+                    pred_phrases = range(len(bbox)) 
+                else:
+                    pred_phrases = [0]
             
             # Run the requested model
             self.ml_logger.info(f'Running model {model_to_run} on shot {shot_name}')
@@ -400,6 +437,26 @@ class MLRunner(object):
                                                  first_frame_sequence,
                                                  pred_phrases, 
                                                  shot_name,
+                                                 self.ml_logger,
+                                                 uuid,
+                                                 H,
+                                                 W,
+                                                 use_gdino, 
+                                                 limit_range, 
+                                                 delimiter)
+                self.inference_state = self.model.run()
+
+            elif model_to_run == 'sam3':
+                self.model = self.sam3_definition(path_to_sequence, 
+                                                 self.loaded_frames,
+                                                 render_to,
+                                                 render_name,
+                                                 bbox, 
+                                                 frame_idx, 
+                                                 first_frame_sequence,
+                                                 pred_phrases, 
+                                                 shot_name,
+                                                 text_prompt,
                                                  self.ml_logger,
                                                  uuid,
                                                  H,
@@ -524,11 +581,14 @@ class MLRunnerHandler(FileSystemEventHandler):
 
     def add_queue(self, path):
         self.queue.append(path)
+        self.mlrunner.ml_logger.info(f'{os.path.basename(path)} added to queue')
+        self.mlrunner.ml_logger.info(f'Total number of jobs in queue is: {len(self.queue)}')
     
     def run_from_queue(self):
         for i in self.queue:
             self.mlrunner.run_model_based_on_cfg(i)
             self.queue.remove(i)
+            
 
     def on_created(self, event: FileSystemEvent) -> None:
         if event.src_path not in self.queue and event.src_path.endswith('.json'):
@@ -553,7 +613,6 @@ if __name__ == '__main__':
     
     observer = Observer() if is_poll else PollingObserver(timeout = 1.0)
     event_handler = MLRunnerHandler(runner)
-
     observer.schedule(event_handler, runner.listen_dir)
     runner.ml_logger.info(f'Starting listening at directory {runner.listen_dir}')
 

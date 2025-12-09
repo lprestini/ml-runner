@@ -1,0 +1,3 @@
+{
+    "checkpoint_path": "../third_party_models/edited_sam3/checkpoints/sam3/sam3.pt"
+}

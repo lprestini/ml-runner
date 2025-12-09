@@ -142,3 +142,4 @@ yapf==0.43.0
 accelerate==0.30.1
 diffusers==0.29.1
 evo==1.34.0
+ftfy==6.3.1
