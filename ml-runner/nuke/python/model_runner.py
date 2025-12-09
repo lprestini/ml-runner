@@ -5,6 +5,7 @@ import nuke
 import nukescripts
 import time
 
+
 if nuke.NUKE_VERSION_MAJOR > 15:
     from PySide6 import QtWidgets, QtGui
     # from PySide6.QtWidgets import QPushButton, QSizePolicy
@@ -13,19 +14,23 @@ else:
     from PySide2 import QtWidgets, QtGui
     from PySide2.QtCore import Qt, QObject, QEvent
 
+
 class UserActivityMonitor(QObject):
     def __init__(self, idle_timeout=1):  # milliseconds
         super().__init__()
         self.last_activity_time = time.time()
         self.idle_timeout = idle_timeout / 1000  # convert to seconds
 
+
     def eventFilter(self, obj, event):
         if event.type() in (QEvent.KeyPress, QEvent.MouseMove, QEvent.MouseButtonPress):
             self.last_activity_time = time.time()
         return super().eventFilter(obj, event)
 
+
     def is_user_idle(self):
         return (time.time() - self.last_activity_time) > self.idle_timeout
+
 
 class CustomTimer(threading.Thread):
     def __init__(self, interval, function, args=None, kwargs=None):
@@ -37,14 +42,17 @@ class CustomTimer(threading.Thread):
         self._stop_event = threading.Event()
         self.has_created = False
 
+
     def run(self):
         if not self._stop_event.wait(self.interval):
             self.has_created = self.function(*self.args, **self.kwargs)
         if self.has_created:
             self.cancel()
 
+
     def cancel(self):
         self._stop_event.set()
+
 
 class Loader(object):
     def __init__(self, node, path, print_to_terminal = True, is_tracker = False):
@@ -59,8 +67,10 @@ class Loader(object):
         app = QtWidgets.QApplication.instance()
         app.installEventFilter(self.user_monitor)
 
+
     def setup_read(self, file_list, node):
         """Function to create the read node. Have to use this as a workaround as I cant simply do nuke.nodes.Read() with threading.Timer as it crashes nuke"""
+
 
         reads = [i for i in nuke.allNodes('Read')]
         read_no = max([int(i['name'].value().replace('Read','')) for i in reads if 'MLRunner' not in i.name()]) + 1
@@ -80,12 +90,14 @@ class Loader(object):
         template_node = template_node.replace('template_file',name).replace('template_first', first).replace('template_last', last).replace('template_name','Read' + str(read_no)).replace('template_xpos', str(xpos)).replace('template_ypos', str(ypos))
         nuke.tcl('in root {%s}' % template_node)
 
+
     def load_bg_render(self, node, path, print_to_terminal, is_tracker):
         if not self.timer_completed:
             self.timer = CustomTimer(10, self.load_bg_render, [self.node, self.path, self.print_to_terminal, self.is_tracker],)
             self.timer.start()
         else:
             self.timer.cancel()
+
 
         if os.path.isfile(self.path):
             # Read json
@@ -98,11 +110,13 @@ class Loader(object):
             error = file['error']
             cancelled = file['is_cancelled']
 
+
             # Check if file is the first in queue
             queue = self.node['queue'].value().split(',')
             queue = queue if len(queue) >= 1 else [name]
             correct_queue = True if name == queue[0] else False
             self.timer_completed = False
+
 
             # Update progress
             if correct_queue:
@@ -111,6 +125,7 @@ class Loader(object):
                 self.node['render_progress'].setValue(filler)
                 if self.print_to_terminal:
                     nuke.tprint(filler)
+
 
             # Stop timer
             if render_p == '100%' or error or cancelled:
@@ -121,6 +136,7 @@ class Loader(object):
                 os.remove(self.path)
                 self.timer_completed = True
                 # Need to implement error behaviour
+
 
             # Load rendered element in nuke
             if self.timer_completed and not error and not cancelled:
@@ -146,6 +162,7 @@ class Loader(object):
                     
         return self.timer_completed
 
+
 def ensure_legal_crop_size(crop_val, width, height):
     box = []
     for idx, i in enumerate(crop_val):
@@ -158,10 +175,12 @@ def ensure_legal_crop_size(crop_val, width, height):
         box.append(i)
     return box
 
+
 def ensure_legal_frame(current_frame, first, last):
     frame = current_frame if current_frame > first else first
     frame = current_frame if current_frame < last else last 
     return frame
+
 
 def padding_to_num(padded_name, delimiter, ref_frame):
     pad, ext = os.path.splitext(padded_name)
@@ -171,6 +190,7 @@ def padding_to_num(padded_name, delimiter, ref_frame):
     pads = ''.join('0' for i in range(int(pad)))
     return pads
 
+
 node = nuke.thisNode()
 config_save_directory = node['config_save_directory'].value()
 shot_name = node['shot_name'].value()
@@ -179,13 +199,16 @@ height = node.height()
 delimiter = node['delimiter'].value()
 frame_idx = int(node['frame_idx'].value()) #ensure_legal_frame(int(node['frame_idx'].value()), int(node.firstFrame()), int(node.lastFrame()))
 
+
 # Check all is good
 is_correct_extension = any(shot_name.split('.')[-1].lower() in i for i in ('.png','.jpg', '.jpeg', '.exr', '.mov'))
 is_mov = 'mov' in os.path.splitext(shot_name)[-1].lower() 
 path_to_sequence_exists = os.path.isdir(node['path_to_sequence'].value())
 is_node_connected = len(node.dependencies()) > 0
-is_segmentation = node['model_to_run'].value() in ('sam','dam')
+is_segmentation = node['model_to_run'].value() in ('sam','dam', 'sam3')
 is_tracking = node['model_to_run'].value() == 'cotracker'
+use_sam3 = node['use_sam3'].value() if node['model_to_run'].value() == 'sam3' else False
+
 
 if is_segmentation or is_tracking:
     is_frame_legal = frame_idx >= int(node.firstFrame()) and frame_idx <= int(node.lastFrame())
@@ -198,12 +221,14 @@ else:
 config_dir_exists = os.path.isdir(config_save_directory) 
 is_server_running = os.path.isfile(os.path.join(config_save_directory,'.server_is_running.tmp').replace('\\','/')) 
 
+
 all_good = False
 if all(i for i in (is_correct_extension, path_to_sequence_exists, is_node_connected, is_frame_legal, config_dir_exists, is_server_running)):
     all_good = True
 else:
     errors = [idx for idx,i in enumerate((is_correct_extension, path_to_sequence_exists, is_node_connected, is_frame_legal, config_dir_exists, is_server_running)) if not i]
     error_keys = ['unsupported_extension', 'wrong_path', 'node_not_connected', 'wrong_frame', 'wrong_config_path', 'server_not_running']
+
 
 error_messages = {
     'unsupported_extension' : 'ERROR! The sequence you are trying to run does not have the correct file extension. We only support png and jpg for now.\n',
@@ -214,19 +239,21 @@ error_messages = {
     'server_not_running'    : f"ERROR! The server does't seem to be running. \nPlease contact your administrator or ensure that the server is listenting in the same directory as what's specified in the node:\n{config_save_directory}\n",
 }
 
+
 if all_good:
     crop_position = ensure_legal_crop_size(node['crop_position'].value(), width, height)
     ## Setup config file
     config = {}
     config['listen_dir']   = config_save_directory
     config['model_to_run'] = node['model_to_run'].value()
-    config['id_class'] = node['id_class'].value() 
-    config['crop_position'] = [crop_position]
+    config['id_class'] = node['id_class'].value() if node['id_class'].visible() else ''
+    config['crop_position'] = [crop_position] if node['crop_position'].visible() else None
     config['path_to_sequence'] = node['path_to_sequence'].value()
     config['shot_name'] = shot_name
     config['render_to'] = node['render_to'].value()
     config['render_name'] = node['render_name'].value()
     config['use_gdino'] = node['use_gdino'].value()
+    config['use_sam3'] = use_sam3
     config['is_mov'] = is_mov
     config['mov_last_frame'] = int(node.lastFrame() - node.firstFrame())
     config['frame_idx'] = int(frame_idx - node.firstFrame())
@@ -241,12 +268,15 @@ if all_good:
         pass_knobs = config['passes']
         config['passes'] = [i for i in pass_knobs if node[i].value() == True]
 
+
     # Not implemented yet
     config['multisequence'] = False
+
 
     # We remove one frame as we are using these to simply slice lists
     config['limit_first'] = int(node['limit_first'].value() - node.firstFrame())
     config['limit_last'] = int(node['limit_last'].value() - node.firstFrame()) + 1
+
 
     # Write related stuff
     write_sequence = node['write_sequence'].value()
@@ -255,18 +285,22 @@ if all_good:
     write['file'].setValue(shot_name)
     shot_name_no_padding = os.path.basename(write['file'].evaluate())
 
+
     ## When using pipelines evaluate is returning the path of the sequence. This is a hacky workaround.
     if os.path.isdir(shot_name_no_padding):
         shot_name_no_padding = padding_to_num(shot_name, delimiter, int(frame_idx))
     config['shot_name'] = shot_name_no_padding
 
+
     if not os.path.isdir(config['render_to']):
         os.makedirs(config['render_to'])
+
 
     # If render sequence we write to path_to_sequence
     if write_sequence:
         write['file'].setValue(os.path.join(node['path_to_sequence'].value(), shot_name).replace('\\','/'))
         nukescripts.render_panel((nuke.thisNode(),), False)
+
 
     ## Write config
     keep_going = False
@@ -290,3 +324,4 @@ if all_good:
 else:
     error_message = '\n'.join(error_messages[error_keys[i]] for i in errors )
     nuke.alert(f'The following errors where found. Please ensure they are all fixed prior to writing the config:\n{error_message}')
+

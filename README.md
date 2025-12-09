@@ -38,6 +38,7 @@ Main features:
 
 Implemented models:
 - [SAM2](https://github.com/facebookresearch/sam2)
+- [SAM3](https://github.com/facebookresearch/sam3)
 - [DAM4SAM](https://github.com/jovanavidenovic/DAM4SAM)
 - [Florence2](https://huggingface.co/microsoft/Florence-2-large)  <- Disabled by default as it takes 2 minutes to activate when starting the server, if you want to use it enabled it in the server code.
 - [GroundindDINO](https://github.com/IDEA-Research/GroundingDINO)
@@ -198,3 +199,17 @@ git clone https://huggingface.co/depth-anything/DA3-GIANT
 
 Important note, if you want to use other checkpoints other than the DA3-GIANT - you'll need to download the weights and edit the path in `ml-runner/ml-runner/model_configs/depth_anything3.json` to reflect what model you want to use. 
 
+# Installing SAM3
+
+To install SAM3 you need to download the checkpoint from hugging face. However to do so, you'll need to submit a form to get approval for downloading the checkpoints. 
+Go to [huggingface website](https://huggingface.co/facebook/sam3) and fill out the form. Once approved run the following 
+
+```
+cd third_party_models/edited_sam3
+mkdir checkpoints && cd checkpoints
+git lfs install 
+git clone https://huggingface.co/facebook/sam3
+```
+
+So far I have only implemented the semantic segmentation functionality as the box mode doesnt support the text and seems to be performing like sam2. 
+Happy to go back to it eventually.

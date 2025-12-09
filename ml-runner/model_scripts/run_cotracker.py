@@ -208,6 +208,7 @@ class run_cotracker(object):
                 bwd_tracks = []
                 bwd_vis = []
                 self.logger.info('Track shot backward')
+                #TODO Fix bug here with padding 
                 for ind in range(0, bwd_frames_padded.shape[1]-self.predictor.step, self.predictor.step):
                     chunked = bwd_frames_padded[:, ind : ind + self.predictor.step * 2 , :, :]
                     bwd_pred_tracks, bwd_pred_visibility = self.predictor(video_chunk = chunked)
