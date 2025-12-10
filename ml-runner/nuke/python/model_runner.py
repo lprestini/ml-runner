@@ -15,6 +15,63 @@ else:
     from PySide2.QtCore import Qt, QObject, QEvent
 
 
+def cancel_task():
+    config_save_directory = node['render_to'].value()
+    with open(os.path.join(config_save_directory, 'cancel_render'),'w') as f:
+        f.write('cancel')
+
+def run_progress_bar(path_to_file, model_type):
+    task = nuke.ProgressTask("Please wait...")
+
+    spinner = ["-", "\\", "|", "/"]
+    i = 0
+
+    in_progress = True
+    filename = None
+    render_progress = 0
+    progress = 0
+    tracking_progress = 0
+    while in_progress:
+
+        if task.isCancelled():
+            nuke.message("Cancelled!")
+            task.setProgress(100)
+            cancel_task()
+            return False
+
+        if os.path.isfile(path_to_file):
+            try:
+                with open(path_to_file,'r') as f:
+                    cfg = json.load(f)
+                
+                render_progress = cfg['render_progress']
+                tracking_progress = cfg['tracking_progress']
+                filename = cfg['filename']
+            except:
+                pass
+
+            progress = int((int(render_progress.replace('%','')) + int(tracking_progress.replace('%',''))) / 2 )
+
+        task.setProgress((progress % 100))
+        task.setMessage(f"Processing {model_type} {spinner[i % 4]}")
+
+        time.sleep(0.2)
+
+        i += 1
+        in_progress = render_progress != "100%"
+        if not in_progress:
+            break
+    task.setProgress(100)
+
+    return filename
+
+def remove_from_queue(node, path):
+    queue = node['queue'].value().split(',')
+    queue.pop(0)
+    node['queue'].setValue(','.join(i for i in queue))
+    if os.path.isfile(path):
+        os.remove(path)
+
 class UserActivityMonitor(QObject):
     def __init__(self, idle_timeout=1):  # milliseconds
         super().__init__()
@@ -83,13 +140,14 @@ class Loader(object):
             xpos template_xpos
             ypos template_ypos
             }"""
-        name, frame_range = file_list.split(' ')
-        first,last = frame_range.split('-')
-        xpos = node.xpos() + 150
-        ypos = node.ypos()
-        template_node = template_node.replace('template_file',name).replace('template_first', first).replace('template_last', last).replace('template_name','Read' + str(read_no)).replace('template_xpos', str(xpos)).replace('template_ypos', str(ypos))
-        nuke.tcl('in root {%s}' % template_node)
-
+        if ' ' in file_list:
+            name, frame_range = file_list.split(' ')
+            first,last = frame_range.split('-')
+            xpos = node.xpos() + 150
+            ypos = node.ypos()
+            template_node = template_node.replace('template_file',name).replace('template_first', first).replace('template_last', last).replace('template_name','Read' + str(read_no)).replace('template_xpos', str(xpos)).replace('template_ypos', str(ypos))
+            nuke.tcl('in root {%s}' % template_node)
+            time.sleep(0.2)
 
     def load_bg_render(self, node, path, print_to_terminal, is_tracker):
         if not self.timer_completed:
@@ -129,11 +187,7 @@ class Loader(object):
 
             # Stop timer
             if render_p == '100%' or error or cancelled:
-                # timer.cancel()
-                queue = self.node['queue'].value().split(',')
-                queue.pop(0)
-                self.node['queue'].setValue(','.join(i for i in queue))
-                os.remove(self.path)
+                remove_from_queue(self.node, self.path)
                 self.timer_completed = True
                 # Need to implement error behaviour
 
@@ -159,7 +213,7 @@ class Loader(object):
                                         nuke.tcl('in root {%s}' % f.read())
                                 count = 40
                     count +=1
-                    
+
         return self.timer_completed
 
 
@@ -208,6 +262,7 @@ is_node_connected = len(node.dependencies()) > 0
 is_segmentation = node['model_to_run'].value() in ('sam','dam', 'sam3')
 is_tracking = node['model_to_run'].value() == 'cotracker'
 use_sam3 = node['use_sam3'].value() if node['model_to_run'].value() == 'sam3' else False
+FG_render = node['fg_render'].value()
 
 
 if is_segmentation or is_tracking:
@@ -311,16 +366,38 @@ if all_good:
     else:
         keep_going = True
 
+
     if keep_going:
         unique_name = str(uuid.uuid4())
         config['uuid'] = unique_name
         with open(os.path.join(config_save_directory, f'{unique_name}_{shot_name_no_padding}.json').replace('\\','/'), 'w') as f:
             json.dump(config, f, indent = 4)
 
+
         queue = node['queue'].value()
         queue = queue + ',' + unique_name if queue != '' else unique_name
         node['queue'].setValue(queue)
-        node_loader = Loader(node, os.path.join(config['render_to'], f'{unique_name}_render_progress.json').replace('\\','/'), is_tracker = is_tracking)
+        render_progress_file = os.path.join(config['render_to'], f'{unique_name}_render_progress.json').replace('\\','/')
+        if FG_render:
+            nuke.thisNode().end()
+            filename = run_progress_bar(render_progress_file, config['model_to_run'])
+            if filename:
+                if not is_tracking:
+                    for read_idx, _file in enumerate(filename):
+                        shot = [i for i in nuke.getFileNameList(os.path.dirname(render_progress_file)) if _file in i]
+                        if shot:
+                            read = nuke.nodes.Read()
+                            read['file'].fromUserText(os.path.join(os.path.dirname(render_progress_file),shot[0]).replace('\\','/'))
+                            read.setXYpos(node.xpos() + (100 * (read_idx + 1)) , node.ypos())
+                else:
+                    for tracker_idx, _file in enumerate(filename):
+                        tracker = nuke.loadToolset(os.path.join(os.path.dirname(render_progress_file), _file))
+                        tracker.setXYpos(node.xpos() + (100 * (tracker_idx + 1)) , node.ypos())
+
+            remove_from_queue(node, render_progress_file)
+            
+        else:
+            node_loader = Loader(node, render_progress_file, is_tracker = is_tracking)
 else:
     error_message = '\n'.join(error_messages[error_keys[i]] for i in errors )
     nuke.alert(f'The following errors where found. Please ensure they are all fixed prior to writing the config:\n{error_message}')

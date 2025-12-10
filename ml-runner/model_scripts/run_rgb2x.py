@@ -111,5 +111,5 @@ class run_rgb2x(object):
                 filenames.append(filename)
             
             if idx % 10:
-                render_progress = calc_progress(1, 1, idx + 1, B)
+                render_progress = calc_progress(1, 0, idx + 1, B)
                 write_stats_file(self.render_dir, filenames, self.uuid, render_progress, '100%', False)

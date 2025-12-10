@@ -104,7 +104,8 @@ class run_depth_crafter(object):
                 frame = self.restore_og_size(frame)
                 cv2.imwrite(os.path.join(self.render_dir, name).replace('\\','/'), frame)
                 if idx % 10:
-                    render_progress = calc_progress(1, 1, idx + 1, total_steps)
+                    render_progress = calc_progress(1, 0, idx + 1, total_steps)
                     write_stats_file(self.render_dir, [filename], self.uuid, render_progress, '100%', False)
+                    print(render_progress)
 
         
