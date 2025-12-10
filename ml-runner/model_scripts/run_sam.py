@@ -136,7 +136,7 @@ class runSAM2(object):
 
                 # Compute progress tracking forward
                 if out_frame_idx % 10 == 0:
-                    track_progress = calc_progress(total_boxes, idx + 1, out_frame_idx + 1, total_steps - self.ann_frame_idx)
+                    track_progress = calc_progress(total_boxes, idx , (out_frame_idx -self.ann_frame_idx) + 1, total_steps - self.ann_frame_idx)
                     write_stats_file(self.render_dir, shot_name, self.uuid, '0%', track_progress, False)
 
                 # If we find file while tracking we break loop but not delete the file 
@@ -156,15 +156,18 @@ class runSAM2(object):
 
                     # Compute progress tracking forward
                     if out_frame_idx % 10 == 0:
-                        track_progress = calc_progress(total_boxes, idx + 1, out_frame_idx + 1, 1)
+                        track_progress = calc_progress(total_boxes, idx, (self.ann_frame_idx - out_frame_idx ) + 1, total_steps)
                         write_stats_file(self.render_dir, shot_name, self.uuid, '0%', track_progress, False)
-
+                    
                     # And we repeat here
                     if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
                         break
                 # And we delete the file here
                 if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
                     break
+
+                track_progress = '100%'
+
 
             if self.render:
                 if not os.path.isdir(self.render_dir):
@@ -200,7 +203,8 @@ class runSAM2(object):
                         if out_frame_idx % 10 == 0 or (out_frame_idx + 1 == total_steps):
                             filenames.append(filename)
                             filenames = list(set(filenames))
-                            render_progress = calc_progress(total_boxes, idx + 1, out_frame_idx + 1, total_steps)
+
+                            render_progress = calc_progress(total_boxes, idx, out_frame_idx + 1, total_steps)
                             write_stats_file(self.render_dir, filenames, self.uuid, render_progress, track_progress, False)
                             
                         #  We check for cancel file but not delete file 

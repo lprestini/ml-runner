@@ -176,6 +176,7 @@ class run_cotracker(object):
     def track(self, original_img_list, queries = None):
         full_tracks = None
         stop = False
+        B = original_img_list.shape[0]
 
         # Track forward
         fwd_frames_padded, pad_fwd_front, pad_fwd_back = self.pad_tensor_to_multiple16(original_img_list, direction='tail')
@@ -189,6 +190,9 @@ class run_cotracker(object):
             pred_tracks, pred_visibility = self.predictor(video_chunk = chunked)
             fwd_tracks.append(pred_tracks)
             fwd_vis.append(pred_visibility)
+            tracking_progress = calc_progress(1,0, (ind- self.ann_frame_idx) + 1, B)
+            write_stats_file(self.render_dir, [], self.uuid, '0%', tracking_progress, False)
+
             # If we find file while tracking we break loop but not delete the file 
             if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
                 break
@@ -212,6 +216,9 @@ class run_cotracker(object):
                 for ind in range(0, bwd_frames_padded.shape[1]-self.predictor.step, self.predictor.step):
                     chunked = bwd_frames_padded[:, ind : ind + self.predictor.step * 2 , :, :]
                     bwd_pred_tracks, bwd_pred_visibility = self.predictor(video_chunk = chunked)
+                    tracking_progress = calc_progress(1,0, (ind- self.ann_frame_idx) + 1, B)
+                    write_stats_file(self.render_dir, [], self.uuid, '0%', tracking_progress, False)
+                    
                     # If we find file while tracking we break loop but not delete the file 
                     if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking=True):
                         break
@@ -286,7 +293,7 @@ class run_cotracker(object):
                     with open(os.path.join(self.render_dir, filename), 'w') as f:
                         f.write(nuke_tracker)
                     filenames.append(filename)
-                    render_progress = calc_progress(total_boxes, idx + 1, 1, 1)
+                    render_progress = calc_progress(total_boxes, idx , 1, 1)
                     write_stats_file(self.render_dir, filenames, self.uuid, render_progress, '100%', False)
                     self.logger.info(f'Track crop{idx} completed!')
 

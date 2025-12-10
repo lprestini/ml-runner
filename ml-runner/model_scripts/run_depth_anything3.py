@@ -66,7 +66,7 @@ class run_depth_anything3(object):
                 frame = self.restore_og_size(frame).astype(np.float32)
                 cv2.imwrite(os.path.join(self.render_dir, name).replace('\\','/'), frame/255.0)
                 if idx % 10:
-                    render_progress = calc_progress(1, 1, idx + 1, total_steps)
+                    render_progress = calc_progress(1, 0, idx + 1, total_steps)
                     write_stats_file(self.render_dir, [filename], self.uuid, render_progress, '100%', False)
 
         

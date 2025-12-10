@@ -107,7 +107,7 @@ class runDAM4SAM(object):
             if iidx % 10 == 0:
                 self.filenames.append(name_no_frame)
                 self.filenames = list(set(self.filenames))
-                track_progress = calc_progress(total_boxes, idx + 1, step, total_steps)
+                track_progress = calc_progress(total_boxes, idx , step, total_steps)
                 write_stats_file(self.render_dir, self.filenames, self.uuid, track_progress, track_progress, False)
 
         # And here we delete
@@ -115,7 +115,7 @@ class runDAM4SAM(object):
             self.filenames.append(name_no_frame)
             self.filenames = list(set(self.filenames))
             step = ((iidx + 1 ) - ann_fram_idx) + prev_track_progress if direction == 'forward' else ((ann_fram_idx - (iidx + 1)) + 1 ) + prev_track_progress
-            track_progress = calc_progress(total_boxes, idx + 1, step, total_steps)
+            track_progress = calc_progress(total_boxes, idx, step, total_steps)
             write_stats_file(self.render_dir, self.filenames, self.uuid, track_progress, track_progress, False)
             self.track_progress = step
         else:
