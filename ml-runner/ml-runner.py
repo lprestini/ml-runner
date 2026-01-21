@@ -13,6 +13,7 @@ import traceback
 import argparse
 
 from mlrunner_utils.imgutils import get_im_width_height, load_imgs_to_numpy, get_frame_list, load_mov_to_numpy
+from mlrunner_utils.logs import write_stats_file
 
 base_path = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), 'third_party_models').replace('\\','/')
 for i in os.listdir(base_path):
@@ -553,9 +554,14 @@ class MLRunner(object):
 
             self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 
-        except (IndexError,ValueError,TypeError, KeyError) as e:
+        except (IndexError,ValueError,TypeError, KeyError, Exception) as e:
+            error = str(e)
             if isinstance(e, KeyError):
                 self.ml_logger.error(f'Florence model seems to have failed. try a different frame or pass a boundibox yourself')
+            if 'cuda out of memory' in str(e).lower():
+                self.ml_logger.error(f'Looks like you run out of memory!')
+                error = 'Out of memory'
+            write_stats_file(render_to, [render_name],uuid, '0%','0%', True, error_msg = error)
             self.ml_logger.error(f'An error was cought processing the config, here is the printout \n{e}')
             self.ml_logger.error(traceback.format_exc())        
         try:
@@ -577,7 +583,7 @@ class MLRunnerHandler(FileSystemEventHandler):
 
         self.queue = []
         self.mlrunner = runner
-        
+        print(self.mlrunner.listen_dir)
 
     def add_queue(self, path):
         self.queue.append(path)
@@ -594,6 +600,15 @@ class MLRunnerHandler(FileSystemEventHandler):
         if event.src_path not in self.queue and event.src_path.endswith('.json'):
             self.add_queue(event.src_path)
         self.run_from_queue()
+
+    # def write_queue(self, path):
+    #     dir_path = self.mlrunner.listen_dir
+    #     path_to_json = os.path.join(dir_path, 'queue.json')
+    #     if os.path.isfile(path_to_json):
+    #         with open(path_to_json, 'r') as f:
+    #             data = json.load(data)
+    #         data['']
+             
 
 if __name__ == '__main__':
     logging.basicConfig(format='[%(asctime)s][%(levelname)s]: %(message)s', level=logging.INFO)

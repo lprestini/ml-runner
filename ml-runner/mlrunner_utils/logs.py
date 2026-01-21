@@ -2,13 +2,14 @@ import os
 import json
 import math
 
-def write_stats_file(path, filename, name, render_p, track_p,error, cancelled = False):
+def write_stats_file(path, filename, name, render_p, track_p,error, cancelled = False, error_msg = ''):
     progress = {'name' : name,
                   'tracking_progress' : track_p,
                   'render_progress' : render_p, 
                   'filename' : filename,
                   'is_cancelled':cancelled,
-                  'error' : error}
+                  'error' : error,
+                  'error_msg': error_msg}
     with open(os.path.join(path, f'{name}_render_progress.json').replace('\\','/'), 'w') as f:
         json.dump(progress, f, indent = 4)
 
