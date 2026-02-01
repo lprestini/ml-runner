@@ -28,6 +28,29 @@ Nuke gizmo is contained inside this repo under nuke/ToolSets/ML/ModelRunner.nk
 To see how the nuke node works, simply click the below image or the [link to video](https://vimeo.com/1116518771)
 [![ModelRunner for Nuke Tutorial](https://raw.githubusercontent.com/lprestini/ml-runner/refs/heads/main/assets/icon.png)](https://vimeo.com/1116518771)
 
+## Web server informations
+The web serve is a simple python app that display a json file on html. To allow the webserver to be visible to other people on your network - you may need to open a port on the firewall. Before doing that make sure the network you are on is private and/or speak with IT/SystemAdmin to ensure the port you are opening is safe. 
+Opening a port on a public network can expose your computer to vulnerabilities so be safe. 
+In most VFX facilities this is fine as the network is already very safe so opening a port would be only visible by people on your network. But again - be safe and speak wiht IT/SysAdmin if you aren't sure what you are doing. 
+
+To disbale the web server simply run: 
+```
+python ml-runner.py --listen_dir /path/to/listen_dir --no-web_server
+```
+
+To limit the networks that can access the server run 
+
+```
+python ml-runner.py --listen_dir /path/to/listen_dir --ip_allow_list
+```
+
+If --ip_allow_list is enabled - you will need to set the subnets that are allowed inside the ml-runner.py file. 
+
+By default the server runs on port 8001 - you can override it by doing 
+
+```
+python ml-runner.py --listen_dir /path/to/listen_dir --port 8001
+```
 
 ## Current features and implemented models
 Main features:
@@ -35,6 +58,7 @@ Main features:
 - Limit range (if you want to process only parts of a sequence)
 - Cancel/interrupt renders
 - Load images back into Nuke
+- WebServer to dispaly queue for people on the network **NEW FEATURE**
 
 Implemented models:
 - [SAM2](https://github.com/facebookresearch/sam2)
