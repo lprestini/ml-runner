@@ -602,6 +602,10 @@ class MLRunner(object):
 class MLRunnerHandler(FileSystemEventHandler):
     def __init__(self,runner):
         super().__init__()
+        # Threading queue stuff 
+        # We use this so that we can display real queue
+        self.lock = threading.Lock()
+        self.runner_started = False
 
         self.mlrunner = runner
         self.listen_dir = self.mlrunner.listen_dir
@@ -617,10 +621,6 @@ class MLRunnerHandler(FileSystemEventHandler):
         self.cached_queue = None
         self.initialize_cache()
 
-        # Threading queue stuff 
-        # We use this so that we can display real queue
-        self.lock = threading.Lock()
-        self.runner_started = False
 
         # Load existing cache if it exists
         self.load_queue()
