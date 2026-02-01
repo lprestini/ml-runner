@@ -24,8 +24,13 @@ import torch
 import cv2
 import traceback
 import argparse
+import threading
+from simple_website import MLRunnerServer 
+from datetime import datetime
+import queue
 
 from mlrunner_utils.imgutils import get_im_width_height, load_imgs_to_numpy, get_frame_list, load_mov_to_numpy
+from mlrunner_utils.logs import write_stats_file
 
 base_path = os.path.join(os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), 'third_party_models').replace('\\','/')
 for i in os.listdir(base_path):
@@ -328,6 +333,8 @@ class MLRunner(object):
         uuid = config['uuid']
         limit_range = (int(limit_first), int(limit_last)) if limit_range else limit_range
         self.is_pil = False if '.exr' in shot_name.lower() else True
+        errors = []
+        return_code = 0
 
         # Ensure paths are correct
         config_server_dir = config['listen_dir']
@@ -566,11 +573,19 @@ class MLRunner(object):
 
             self.ml_logger.info(f'shot {shot_name} saved at {render_to}')
 
-        except (IndexError,ValueError,TypeError, KeyError) as e:
+        except (IndexError,ValueError,TypeError, KeyError, Exception) as e:
+            return_code = 1
+            error = str(e)
             if isinstance(e, KeyError):
                 self.ml_logger.error(f'Florence model seems to have failed. try a different frame or pass a boundibox yourself')
+            if 'cuda out of memory' in str(e).lower():
+                self.ml_logger.error(f'Looks like you run out of memory!')
+                error = 'Out of memory'
+            write_stats_file(render_to, [render_name],uuid, '0%','0%', True, error_msg = error)
             self.ml_logger.error(f'An error was cought processing the config, here is the printout \n{e}')
-            self.ml_logger.error(traceback.format_exc())        
+            traceback_error = traceback.format_exc()
+            self.ml_logger.error(traceback_error)
+            errors.append(traceback_error)
         try:
             del self.model
             del bbox
@@ -582,42 +597,176 @@ class MLRunner(object):
             self.ml_logger.error('tried to release some memory but failed')
             self.ml_logger.error(f'ERROR:{traceback.format_exc()}')
         
-        return None
+        return return_code, errors
 
 class MLRunnerHandler(FileSystemEventHandler):
     def __init__(self,runner):
         super().__init__()
 
-        self.queue = []
         self.mlrunner = runner
-        
+        self.listen_dir = self.mlrunner.listen_dir
+        self.queue_file = os.path.join(self.listen_dir, 'queue.json')
+        self.queue = queue.Queue()
+        self.pending = set()
+        self.timestamp = []
+        self.processing_timestamp = []
+        self.job_id = []
+        self.status = []
+        self.error_log = []
+        self.model_2_run = []
+        self.cached_queue = None
+        self.initialize_cache()
+
+        # Threading queue stuff 
+        # We use this so that we can display real queue
+        self.lock = threading.Lock()
+        self.runner_started = False
+
+        # Load existing cache if it exists
+        self.load_queue()
+
+    def start_runner(self):
+        """Start runner thread"""
+
+        if self.runner_started:
+            return None
+        self.runner_started = True
+        thread = threading.Thread(target = self.runner_loop, daemon = True)
+        thread.start()
+
+    def initialize_cache(self):
+        """Create empty queue file if it doesnt exist"""
+        if not os.path.isfile(self.queue_file):
+            self.write_queue()
+
+    def runner_loop(self):
+        """ Fetch item from queue and run it - then write to cache"""
+        while True:
+            current = self.queue.get()
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            job_id_idx = len(self.job_id) - 1
+            self.status[job_id_idx] = 'In progress'
+            self.processing_timestamp[job_id_idx]=timestamp
+            self.write_queue()
+            status, errors = self.mlrunner.run_model_based_on_cfg(current)
+
+            if status == 0:
+                self.status[job_id_idx] = 'Completed'
+            else:
+                self.status[job_id_idx] = 'Error'
+                self.error_log[job_id_idx] = '\n'.join(i for i in errors)
+            
+            self.write_queue()
+            with self.lock:
+                self.pending.discard(current)
+            
+            self.queue.task_done()
+
+    def get_model_and_shot_name(self, path_to_json):
+        config = self.mlrunner.read_job_config(path_to_json)
+        return config['model_to_run'],  config['shot_name']
 
     def add_queue(self, path):
-        self.queue.append(path)
-        self.mlrunner.ml_logger.info(f'{os.path.basename(path)} added to queue')
-        self.mlrunner.ml_logger.info(f'Total number of jobs in queue is: {len(self.queue)}')
-    
-    def run_from_queue(self):
-        for i in self.queue:
-            self.mlrunner.run_model_based_on_cfg(i)
-            self.queue.remove(i)
-            
+        """Add configs to the queue and write cache to file to update web server"""
+        # Create timestamp and get model and shot name 
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        model_to_run, shot_name = self.get_model_and_shot_name(path)
+        shot_name, _ = os.path.splitext(shot_name)
 
+        # Add to queue
+        self.queue.put(path)
+        self.status.append('In queue..')
+        self.timestamp.append(timestamp)
+        self.processing_timestamp.append(None)
+        self.error_log.append(None)
+        self.model_2_run.append(model_to_run)
+        self.job_id.append(shot_name)
+
+        # Write cache
+        self.write_queue()
+        self.mlrunner.ml_logger.info(f'{os.path.basename(path)} added to queue')
+        self.mlrunner.ml_logger.info(f'Total number of jobs in queue is: {self.queue.qsize()}')
+    
     def on_created(self, event: FileSystemEvent) -> None:
-        if event.src_path not in self.queue and event.src_path.endswith('.json'):
-            self.add_queue(event.src_path)
-        self.run_from_queue()
+        """ This functionts takes care of the events. 
+        If file is directory or not a json returns so we dont run the rest
+        if its in the pending set, return so we dont run the rest
+        otherwise add to queue and start runner
+        Note runner will start only if its not already started
+
+        Using this system allow the UI to display proper queue as the runner happens on a different thread
+
+        """
+        if event.is_directory:
+            return
+        if not event.src_path.endswith(".json"):
+            return
+
+        with self.lock:
+            if event.src_path in self.pending:
+                return
+            self.pending.add(event.src_path) 
+        self.add_queue(event.src_path)
+        self.start_runner()
+
+    def write_queue(self):
+        """Write data to file"""
+        data = {'queue':list(self.queue.queue),
+                'job_id': self.job_id,
+                'status': self.status,
+                'timestamp': self.timestamp,
+                'started_at': self.processing_timestamp,
+                'error_log':self.error_log,
+                'model2run': self.model_2_run}
+        with self.lock:
+            with open(self.queue_file, 'w') as f:
+                json.dump(data, f, indent = 4)
+    
+    def load_queue(self):
+        if os.path.isfile(self.queue_file):
+            self.mlrunner.ml_logger.info('Found existing queue cache, loading it now..')
+            with open(self.queue_file,'r') as f:
+                self.cached_queue = json.load(f)
+            
+        # Load cached queue
+        if self.cached_queue:
+            for i in self.cached_queue['queue']:
+                self.queue.put(i)
+                self.pending.add(i)
+            self.job_id = self.cached_queue['job_id']
+            self.status = self.cached_queue['status']
+            self.timestamp = self.cached_queue['timestamp']
+            self.processing_timestamp = self.cached_queue['started_at']
+            self.model_2_run = self.cached_queue['model2run']
+            self.error_log = self.cached_queue['error_log']
+            if self.queue.qsize() > 0:
+                self.start_runner()
+                
 
 if __name__ == '__main__':
     logging.basicConfig(format='[%(asctime)s][%(levelname)s]: %(message)s', level=logging.INFO)
+    logging.getLogger("werkzeug").setLevel(logging.ERROR)
     parser = argparse.ArgumentParser(prog='MLRunner')
     parser.add_argument('-l', '--listen_dir', required = True, help='Directory to listen for config delivery on.')
     parser.add_argument('-f', '--use_florence', default = False, action=argparse.BooleanOptionalAction,  help='Whether to use florence or grounding dino')
+    parser.add_argument('-wb', '--web_server', default = True, action=argparse.BooleanOptionalAction,  help='Whether to use web server or not')
+    parser.add_argument('--ip_allow_list', default = False,  action=argparse.BooleanOptionalAction,  help='Whether to use an IP allow least to reach the webserver')
+    parser.add_argument('-p', '--port', default = 8001,  help='What port to use for the web server')
     args = parser.parse_args()
     listen_path = args.listen_dir
     use_florence = args.use_florence
+    use_web_server = args.web_server
+    use_allow_list = args.ip_allow_list
+    port = args.port
 
     assert os.path.isdir(listen_path), 'Hey the path you passed doesnt exists. Pleas insert a valid path'
+    if use_web_server:
+        allow_list = [] # EDIT ME TO ADD SUBNETS YOU WANT TO ALLOW -E.G ['100.123.123.0/24',]
+        if use_allow_list and len(allow_list) == 0:
+            raise AssertionError('Please set up the IP allow list to continue')
+        web_server = MLRunnerServer(data_path = os.path.join(listen_path, 'queue.json'), web_dir = os.path.dirname(os.path.abspath(__file__)), ip_allow_list=allow_list, use_ip_allow_list=use_allow_list)
+        web_server.start_threaded(host = '0.0.0.0', port = port)
+    
     runner = MLRunner(listen_path, use_florence = use_florence)
 
     # Gotta use poll as the standard observer doesnt work on nfs

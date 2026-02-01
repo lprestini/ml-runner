@@ -119,6 +119,5 @@ class run_depth_crafter(object):
                 if idx % 10:
                     render_progress = calc_progress(1, 0, idx + 1, total_steps)
                     write_stats_file(self.render_dir, [filename], self.uuid, render_progress, '100%', False)
-                    print(render_progress)
 
         

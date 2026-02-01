@@ -1,0 +1,1094 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MLRunner Dashboard</title>
+
+  <style>
+    /* =========================
+       THEME
+       ========================= */
+    :root{
+      --bg0: #070A12;
+      --bg1: #0B1020;
+      --panel: rgba(255,255,255,0.06);
+      --panel2: rgba(255,255,255,0.04);
+
+      --text: rgba(255,255,255,0.92);
+      --muted: rgba(255,255,255,0.65);
+
+      --grid: rgba(255,255,255,0.10);
+      --grid2: rgba(255,255,255,0.06);
+
+      --accent: #7C5CFF;
+      --accent2: #33D6FF;
+
+      --shadow: 0 10px 30px rgba(0,0,0,0.35);
+      --radius: 14px;
+      --radius-sm: 10px;
+    }
+
+    *{ box-sizing: border-box; }
+
+    body{
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 15% 0%, rgba(124,92,255,0.18), transparent 55%),
+        radial-gradient(1000px 600px at 90% 10%, rgba(51,214,255,0.12), transparent 55%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+    }
+
+    /* App frame */
+    .app{
+      padding: 22px;
+      max-width: 1700px;
+      margin: 0 auto;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    h1{
+      margin: 0;
+      font-size: 18px;
+      letter-spacing: 0.2px;
+      font-weight: 650;
+    }
+
+    .subtitle{
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    /* =========================
+       TOOLBAR (floating strip)
+       ========================= */
+    .toolbar{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+
+      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.05));
+      border: 1px solid var(--grid2);
+      border-radius: var(--radius);
+      padding: 10px 10px;
+      box-shadow: var(--shadow);
+      /* backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px); */
+      margin-bottom: 12px;
+    }
+
+    /* search */
+    input[type="search"]{
+      padding: 10px 12px;
+      min-width: 260px;
+      border-radius: 12px;
+      border: 1px solid var(--grid2);
+      background: rgba(0,0,0,0.25);
+      color: var(--text);
+      outline: none;
+      transition: border-color 120ms ease, transform 120ms ease;
+    }
+    input[type="search"]::placeholder{ color: rgba(255,255,255,0.45); }
+    input[type="search"]:focus{
+      border-color: rgba(124,92,255,0.55);
+      box-shadow: 0 0 0 3px rgba(124,92,255,0.18);
+    }
+
+    /* buttons / selects */
+    .btn{
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--grid2);
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      cursor: pointer;
+      /* transition: background 0s, border-color 0s; */
+      user-select: none;
+    }
+    .btn:hover{
+      background: rgba(255,255,255,0.10);
+      border-color: rgba(255,255,255,0.16);
+      /* transform: translateY(-1px); */
+    }
+    .btn:active{ transform: none;}
+    .btn:disabled{
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    select.btn{
+      appearance: none;
+      padding-right: 34px !important;
+      background-image:
+        linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.65) 50%),
+        linear-gradient(135deg, rgba(255,255,255,0.65) 50%, transparent 50%);
+      background-position:
+        calc(100% - 18px) calc(50% - 2px),
+        calc(100% - 12px) calc(50% - 2px);
+      background-size: 6px 6px, 6px 6px;
+      background-repeat: no-repeat;
+    }
+
+    .muted{ color: var(--muted); font-size: 12px; }
+    .error{ color: #ffb4b4; white-space: pre-wrap; }
+
+    #pageInfo{
+      padding: 0 4px;
+    }
+
+    /* =========================
+       TABLE CARD
+       ========================= */
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.04));
+      border: 1px solid var(--grid2);
+      border-radius: var(--radius);
+      overflow: clip;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25)
+      /* This seems to crash my laptop - will leave it commented for now */
+      /* box-shadow: var(--shadow); */
+      /* backdrop-filter: blur(10px); */
+      /* -webkit-backdrop-filter: blur(10px); */
+    }
+
+    /* make table scroll nicely on small screens */
+    /* .tableWrap{
+      overflow: auto;
+      max-height: calc(100vh - 250px);
+    } */
+
+    /* =========================
+       TABLE 
+       ========================= */
+    table{
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+      table-layout: fixed;
+      min-width: 900px;
+      max-width: none;
+    }
+
+    th, td{
+      padding: 10px 12px;
+      text-align: left;
+
+      /* keep your default ellipsis behavior */
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+
+      max-width: 500px; /* adjust to suit your table */
+      box-sizing: border-box; 
+
+      border-right: 1px solid var(--grid2);
+      border-bottom: 1px solid var(--grid2);
+      background: rgba(0,0,0,0.12);
+    }
+
+    /* remove last column right border */
+    tr > *:last-child{ border-right: none; min-width: 80px;}
+    
+    /* STICKY header */
+   thead th{
+      position: sticky;
+      top: 0;
+      z-index: 5;
+
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.10), rgba(255,255,255,0.06));
+      border-bottom: 1px solid rgba(255,255,255,0.14);
+      user-select: none;
+      cursor: pointer;
+    }
+
+    /* Header content layout preserved */
+    th .head{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    th .meta{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width: 60px;
+      justify-content:flex-end;
+      flex-shrink: 0;
+    }
+
+    .sort{
+      font-size: 12px;
+      color: rgba(255,255,255,0.7);
+    }
+    .drag{
+      font-size: 14px;
+      color: rgba(255,255,255,0.7);
+      cursor: grab;
+    }
+    th:active .drag{ cursor: grabbing; }
+
+    /* Resizer handle clearer */
+    .resizer{
+      position:absolute;
+      top:0;
+      right:0;
+      width: 10px;
+      height:100%;
+      cursor: col-resize;
+    }
+    .resizer:after{
+      content:"";
+      position:absolute;
+      right: 4px;
+      top: 22%;
+      width: 2px;
+      height: 56%;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.18);
+      opacity: 0.0;
+      transition: opacity 120ms ease;
+    }
+    th:hover .resizer:after{ opacity: 1; }
+
+    /* row zebra + hover */
+    tbody tr:nth-child(even) td{ background: rgba(255,255,255,0.03); }
+    tbody tr:hover td{
+      background: rgba(124,92,255,0.10);
+      border-bottom-color: rgba(124,92,255,0.25);
+    }
+
+    /* monospace helper preserved */
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+                   "Liberation Mono", "Courier New", monospace;
+      font-size: 12.5px;
+      letter-spacing: 0.1px;
+    }
+
+    /* =========================
+       STATUS PILL 
+       ========================= */
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.16);
+      background: rgba(255,255,255,0.06);
+    }
+    
+    .pill:before{
+      content:"";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.35);
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
+    }
+
+    /* status colors (same mapping, more vivid) */
+    .s-done, .s-success, .s-complete, .s-completed{
+      border-color: rgba(80,220,150,0.55);
+      background: rgba(80,220,150,0.16);
+    }
+    .s-done:before, .s-success:before, .s-complete:before, .s-completed:before{ background: rgba(80,220,150,0.9); }
+
+    .s-running, .s-inprogress, .s-in-progress{
+      border-color: rgba(120,180,255,0.55);
+      background: rgba(120,180,255,0.16);
+    }
+    .s-running:before, .s-inprogress:before, .s-in-progress:before{ background: rgba(120,180,255,0.95); }
+
+    .s-queued, .s-pending, .s-waiting{
+      border-color: rgba(255,215,120,0.55);
+      background: rgba(255,215,120,0.16);
+    }
+    .s-queued:before, .s-pending:before, .s-waiting:before{ background: rgba(255,215,120,0.95); }
+
+    .s-failed, .s-error{
+      border-color: rgba(255,120,120,0.60);
+      background: rgba(255,120,120,0.14);
+    }
+    .s-failed:before, .s-error:before{ background: rgba(255,120,120,0.95); }
+
+    .s-cancelled, .s-canceled{
+      border-color: rgba(200,200,200,0.45);
+      background: rgba(200,200,200,0.12);
+    }
+    .s-cancelled:before, .s-canceled:before{ background: rgba(200,200,200,0.9); }
+
+    /* =========================
+       ERROR LOG BOX  
+       ========================= */
+    .logbox{
+      max-height: 160px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: rgba(0,0,0,0.22);
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+    }
+    .logbox::-webkit-scrollbar { height: 10px; width: 10px; }
+    .logbox::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 999px; }
+    .logbox::-webkit-scrollbar-track { background: rgba(255,255,255,0.06); border-radius: 999px; }
+
+    /* Footer hint */
+    .hint{
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 2px;
+    }
+
+    /* msg line */
+    #msg{
+      margin: 10px 2px 12px;
+    }
+
+    /* Small screens: keep toolbar usable */
+    @media (max-width: 720px){
+      input[type="search"]{ min-width: 100%; }
+      .toolbar{ gap: 8px; }
+      
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div>
+        <h1>MLRunner queue </h1>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Filter…" />
+      <button id="reset" class="btn" type="button">Reset layout</button>
+      <button id="refresh" class="btn" type="button">Refresh</button>
+      <button id="toggleTime" class="btn" type="button">Show relative time</button>
+
+      <button id="prevPage" class="btn" type="button">Prev</button>
+      <span id="pageInfo" class="muted"></span>
+      <button id="nextPage" class="btn" type="button">Next</button>
+
+      <label class="muted" style="display:flex;gap:8px;align-items:center;">
+        Sort time:
+        <select id="timeSortKey" class="btn" style="padding:10px 12px;">
+          <option value="">(none)</option>
+        </select>
+      </label>
+
+      <label class="muted" style="display:flex;gap:8px;align-items:center;">
+        Page size:
+        <select id="pageSize" class="btn" style="padding:10px 12px;">
+          <option>25</option>
+          <option>50</option>
+          <option selected>100</option>
+          <option>200</option>
+        </select>
+      </label>
+
+      <span id="count" class="muted"></span>
+    </div>
+
+    <div id="msg" class="muted">Loading…</div>
+
+    <div class="card">
+      <div class="tableWrap">
+        <table aria-label="Jobs table">
+          <thead>
+            <tr id="header-row"></tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="hint">
+      Tip: Click a header to sort. Drag ⠿ to reorder columns. Drag the right edge to resize (saved).
+    </div>
+
+    <script>
+      /* ============================================================
+         GLOBAL SETTINGS / CONSTANTS
+         ============================================================ */
+
+      // Persisted settings for time display + time sort selection
+      const LS_KEY_TIME_MODE = "jobsTable.timeMode.v1";
+      const LS_KEY_TIME_SORT = "jobsTable.timeSortKey.v1";
+
+      // When picking a default "time sort" column, prefer this exact name if present
+      const DEFAULT_TIME_SORT_COL = "Submission Time";
+
+      // Reference to the "Sort time:" dropdown
+      const timeSortSelect = document.getElementById("timeSortKey");
+
+      // Whether to show relative time ("5m ago") or absolute timestamp ("2026-01-23_16-55-31")
+      let showRelativeTime = true;
+
+      // Which timestamp column to use for sorting (e.g. "Submission Time" or "Start Time")
+      let timeSortKey = loadJSON(LS_KEY_TIME_SORT) || "";
+
+      // Save current display mode (NOTE: this always overwrites on load)
+      localStorage.setItem(LS_KEY_TIME_MODE, JSON.stringify(showRelativeTime));
+
+      // Endpoint for the Flask API (relative so it works with url_prefix)
+      const DATA_URL = "./api/data";
+
+      /* ============================================================
+         SCHEMA-SCOPED LOCALSTORAGE KEYS
+         ============================================================ */
+      function schemaKey(cols){
+        const stable = [...cols].sort((a,b) => a.localeCompare(b));
+        return "jobsTable.v2." + stable.join("|");
+      }
+
+      /* ============================================================
+         DOM REFERENCES
+         ============================================================ */
+      const msgEl = document.getElementById("msg");
+      const rowsEl = document.getElementById("rows");
+      const headerRowEl = document.getElementById("header-row");
+      const countEl = document.getElementById("count");
+      const searchEl = document.getElementById("search");
+      const resetBtn = document.getElementById("reset");
+      const refreshBtn = document.getElementById("refresh");
+      const toggleTimeBtn = document.getElementById("toggleTime");
+      const prevPageBtn = document.getElementById("prevPage");
+      const nextPageBtn = document.getElementById("nextPage");
+      const pageInfoEl  = document.getElementById("pageInfo");
+      const pageSizeEl  = document.getElementById("pageSize");
+
+      /* ============================================================
+         STATE (DATA + UI)
+         ============================================================ */
+      let allRows = [];
+      let viewRows = [];
+      let columns = [];
+      let colOrder = [];
+      let colWidths = {};
+      let sortState = { col: null, dir: "asc" };
+      let pageSize = pageSizeEl ? Number(pageSizeEl.value) : 100;
+      let page = 1; // 1-based
+
+      let LS_KEY_ORDER = null;
+      let LS_KEY_WIDTHS = null;
+
+      /* ============================================================
+         COLUMN TYPE HELPERS
+         ============================================================ */
+      function isErrorLogColumn(colId){
+        return String(colId).trim().toLowerCase() === "error log";
+      }
+      function safeText(x){
+        if (x === null || x === undefined) return "";
+        if (typeof x === "object") return JSON.stringify(x);
+        return String(x);
+      }
+      function isStatusColumn(colId){
+        return /status|state|phase|result/i.test(colId);
+      }
+      function statusClass(value){
+        const s = safeText(value).trim().toLowerCase().replace(/\s+/g, "-");
+        if (!s) return "";
+        return "s-" + s.replace(/[^a-z0-9-]/g, "");
+      }
+      function isTimestampColumn(colId){
+        return /time|timestamp|date/i.test(colId);
+      }
+      function isTimeLikeColumn(colId){
+        return /time|timestamp|date/i.test(colId);
+      }
+
+      /* ============================================================
+         WIDTH HELPERS
+         ============================================================ */
+      function loadJSON(key){
+        try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
+      }
+      function saveColOrder(){ if (LS_KEY_ORDER) localStorage.setItem(LS_KEY_ORDER, JSON.stringify(colOrder)); }
+      function saveColWidths(){ if (LS_KEY_WIDTHS) localStorage.setItem(LS_KEY_WIDTHS, JSON.stringify(colWidths)); }
+
+      function computeContentBasedWidths(rows){
+        const ctx = document.createElement("canvas").getContext("2d");
+        ctx.font = getComputedStyle(document.body).font;
+
+        const padding = 100;
+        const minW = 100;
+        const maxW = 480;
+
+        const widths = {};
+
+        for (const col of colOrder) {
+          let maxText = col;
+
+          for (const r of rows) {
+            const v = r[col];
+            if (v != null) {
+              const s = String(v);
+              if (s.length > maxText.length) maxText = s;
+            }
+          }
+
+          const textWidth = ctx.measureText(maxText).width;
+          widths[col] = Math.min(maxW, Math.max(minW, Math.ceil(textWidth + padding)));
+        }
+
+        return widths;
+      }
+
+      /* ============================================================
+         PAGE HELPERS
+         ============================================================ */
+      function totalPages(){
+        const n = Array.isArray(viewRows) ? viewRows.length : 0;
+        return Math.max(1, Math.ceil(n / pageSize));
+      }
+
+      function clampPage(){
+        const tp = totalPages();
+        if (page > tp) page = tp;
+        if (page < 1) page = 1;
+      }
+
+      function renderPage(){
+        if (!Array.isArray(viewRows)) viewRows = [];
+        clampPage();
+
+        const start = (page - 1) * pageSize;
+        const end = Math.min(start + pageSize, viewRows.length);
+        const slice = viewRows.slice(start, end);
+
+        renderBody(slice);
+
+        const tp = totalPages();
+        pageInfoEl.textContent = `${viewRows.length ? (start + 1) : 0}-${end} of ${viewRows.length} | Page ${page}/${tp}`;
+        prevPageBtn.disabled = (page <= 1);
+        nextPageBtn.disabled = (page >= tp);
+      }
+
+      /* ============================================================
+         DATA EXTRACTION
+         ============================================================ */
+      function extractRows(payload){
+        if (!payload) return [];
+        if (payload.error) throw new Error(payload.error + (payload.details ? (": " + payload.details) : ""));
+
+        if (Array.isArray(payload)) return payload;
+
+        if (typeof payload === "object") {
+          const candidateKeys = ["jobs", "data", "items", "rows", "results"];
+          for (const k of candidateKeys) {
+            if (Array.isArray(payload[k])) return payload[k];
+          }
+        }
+
+        throw new Error("Unsupported JSON shape. Return an array of row objects, e.g. [{...},{...}].");
+      }
+
+      /* ============================================================
+         COLUMN DISCOVERY
+         ============================================================ */
+      function computeColumns(rows){
+        const seen = new Set();
+        const cols = [];
+        for (const r of rows) {
+          if (!r || typeof r !== "object" || Array.isArray(r)) continue;
+          for (const k of Object.keys(r)) {
+            if (!seen.has(k)) {
+              seen.add(k);
+              cols.push(k);
+            }
+          }
+        }
+        return cols;
+      }
+
+      /* ============================================================
+         RESET LAYOUT
+         ============================================================ */
+      function resetLayout(){
+        colOrder = [...columns];
+
+        localStorage.removeItem(LS_KEY_ORDER);
+        localStorage.removeItem(LS_KEY_WIDTHS);
+
+        colWidths = computeContentBasedWidths(allRows);
+        localStorage.setItem(LS_KEY_WIDTHS, JSON.stringify(colWidths));
+
+        timeSortKey = "";
+        forceDefaultTimeSort();
+
+        renderHeader();
+        applyFilterSortRender();
+      }
+
+      /* ============================================================
+         RENDER HEADER
+         ============================================================ */
+      function renderHeader(){
+        headerRowEl.innerHTML = "";
+
+        colOrder.forEach((colId) => {
+          const th = document.createElement("th");
+          th.setAttribute("data-col", colId);
+          th.setAttribute("draggable", "true");
+
+          if (colWidths[colId]) th.style.width = colWidths[colId] + "px";
+
+          const head = document.createElement("div");
+          head.className = "head";
+
+          const title = document.createElement("span");
+          title.textContent = colId;
+
+          const meta = document.createElement("span");
+          meta.className = "meta";
+
+          const sort = document.createElement("span");
+          sort.className = "sort";
+          sort.textContent = (sortState.col === colId) ? (sortState.dir === "asc" ? "▲" : "▼") : "";
+
+          const drag = document.createElement("span");
+          drag.className = "drag";
+          drag.title = "Drag to reorder columns";
+          drag.textContent = "⠿";
+
+          meta.appendChild(sort);
+          meta.appendChild(drag);
+
+          head.appendChild(title);
+          head.appendChild(meta);
+          th.appendChild(head);
+
+          const resizer = document.createElement("div");
+          resizer.className = "resizer";
+          th.appendChild(resizer);
+
+          th.addEventListener("click", (e) => {
+            if (e.target.classList.contains("resizer") || e.target.classList.contains("drag")) return;
+            toggleSort(colId);
+          });
+
+          wireResizer(th, resizer, colId);
+          wireDrag(th, colId);
+
+          headerRowEl.appendChild(th);
+        });
+      }
+
+      /* ============================================================
+         RENDER BODY
+         ============================================================ */
+      function renderBody(rows){
+        rows = Array.isArray(rows) ? rows : [];
+        rowsEl.innerHTML = "";
+        const frag = document.createDocumentFragment();
+
+        for (const r of rows) {
+          const tr = document.createElement("tr");
+
+          for (const colId of colOrder) {
+            const td = document.createElement("td");
+            td.setAttribute("data-col", colId);
+
+            const v = r ? r[colId] : "";
+            const text = safeText(v);
+
+            if (/uuid/i.test(colId) || /id/i.test(colId)) td.classList.add("mono");
+
+            if (isStatusColumn(colId)) {
+              const pill = document.createElement("span");
+              pill.className = "pill " + statusClass(v);
+              pill.textContent = text;
+              td.appendChild(pill);
+            }
+            else if (isErrorLogColumn(colId)) {
+              const box = document.createElement("div");
+              box.className = "logbox";
+              box.textContent = text;
+              td.appendChild(box);
+            }
+            else if (isTimestampColumn(colId)) {
+              if (showRelativeTime) {
+                const t = parseTimestamp(text);
+                const rel = formatRelative(t);
+                td.textContent = rel || text;
+                td.title = text;
+              } else {
+                td.textContent = text;
+                const t = parseTimestamp(text);
+                if (t !== null) td.title = formatRelative(t);
+              }
+            }
+            else {
+              td.textContent = text;
+            }
+
+            tr.appendChild(td);
+          }
+
+          frag.appendChild(tr);
+        }
+
+        rowsEl.appendChild(frag);
+        countEl.textContent = `${rows.length} row${rows.length === 1 ? "" : "s"}`;
+      }
+
+      /* ============================================================
+         SORT CONTROL
+         ============================================================ */
+      function toggleSort(colId){
+        if (sortState.col === colId) {
+          sortState.dir = (sortState.dir === "asc") ? "desc" : "asc";
+        } else {
+          sortState.col = colId;
+          sortState.dir = isTimestampColumn(colId) ? "desc" : "asc";
+        }
+
+        if (isTimeLikeColumn(colId)) {
+          timeSortKey = colId;
+          timeSortSelect.value = colId;
+          localStorage.setItem(LS_KEY_TIME_SORT, JSON.stringify(timeSortKey));
+        }
+
+        renderHeader();
+        applyFilterSortRender();
+      }
+
+      /* ============================================================
+         TIMESTAMP PARSING + RELATIVE FORMAT
+         ============================================================ */
+      function parseTimestamp(value){
+        if (!value) return null;
+        const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2})-(\d{2})-(\d{2})$/);
+        if (!m) return null;
+        const y  = Number(m[1]);
+        const mo = Number(m[2]) - 1;
+        const d  = Number(m[3]);
+        const h  = Number(m[4]);
+        const mi = Number(m[5]);
+        const s  = Number(m[6]);
+        return new Date(y, mo, d, h, mi, s).getTime();
+      }
+
+      function formatRelative(ms){
+        if (ms === null) return "";
+
+        const diff = Date.now() - ms;
+        const future = diff < 0;
+        const abs = Math.abs(diff);
+
+        const sec = Math.floor(abs / 1000);
+        const min = Math.floor(sec / 60);
+        const hr  = Math.floor(min / 60);
+        const day = Math.floor(hr / 24);
+
+        let out;
+        if (sec < 10) out = "just now";
+        else if (sec < 60) out = `${sec}s`;
+        else if (min < 60) out = `${min}m`;
+        else if (hr < 24) out = `${hr}h`;
+        else out = `${day}d`;
+
+        if (out === "just now") return out;
+        return future ? `in ${out}` : `${out} ago`;
+      }
+
+      /* ============================================================
+         POPULATE TIME SORT DROPDOWN
+         ============================================================ */
+      function populateTimeSortOptions(){
+        const timeCols = columns.filter(isTimeLikeColumn);
+
+        timeSortSelect.innerHTML = `<option value="">(none)</option>`;
+        for (const c of timeCols) {
+          const opt = document.createElement("option");
+          opt.value = c;
+          opt.textContent = c;
+          timeSortSelect.appendChild(opt);
+        }
+
+        if (timeSortKey && timeCols.includes(timeSortKey)) {
+          timeSortSelect.value = timeSortKey;
+        } else {
+          timeSortKey = "";
+          timeSortSelect.value = "";
+        }
+      }
+
+      timeSortSelect.addEventListener("change", () => {
+        timeSortKey = timeSortSelect.value;
+        localStorage.setItem(LS_KEY_TIME_SORT, JSON.stringify(timeSortKey));
+
+        if (timeSortKey) {
+          sortState.col = timeSortKey;
+          sortState.dir = "desc";
+          renderHeader();
+        }
+        applyFilterSortRender();
+      });
+
+      /* ============================================================
+         FILTER + SORT + RENDER
+         ============================================================ */
+      function applyFilterSortRender(){
+        page = 1;
+        const q = searchEl.value.trim().toLowerCase();
+
+        viewRows = !q ? [...allRows] : allRows.filter(r => {
+          for (const c of columns) {
+            if (safeText(r?.[c]).toLowerCase().includes(q)) return true;
+          }
+          return false;
+        });
+
+        if (sortState.col) {
+          const col = sortState.col;
+          const dir = sortState.dir === "asc" ? 1 : -1;
+
+          viewRows.sort((a, b) => {
+            const av = a?.[col];
+            const bv = b?.[col];
+
+            if (col === timeSortKey || isTimeLikeColumn(col)) {
+              const ta = parseTimestamp(safeText(av));
+              const tb = parseTimestamp(safeText(bv));
+              if (ta !== null && tb !== null) return (ta - tb) * dir;
+              if (ta !== null && tb === null) return -1 * dir;
+              if (ta === null && tb !== null) return  1 * dir;
+            }
+
+            return safeText(av).localeCompare(safeText(bv)) * dir;
+          });
+        }
+
+        renderBody(viewRows);
+      }
+
+      /* ============================================================
+         COLUMN RESIZING
+         ============================================================ */
+      function wireResizer(th, resizer, colId) {
+          let startX, startW;
+
+          resizer.addEventListener("mousedown", (e) => {
+            e.preventDefault();
+            startX = e.pageX;
+            startW = th.offsetWidth;
+
+            document.addEventListener("mousemove", onMove);
+            document.addEventListener("mouseup", onUp);
+          });
+
+          function onMove(e) {
+            const delta = e.pageX - startX;
+            const newWidth = Math.max(80, startW + delta); // min-width 80px
+            th.style.width = newWidth + "px";
+          }
+
+          function onUp() {
+            colWidths[colId] = th.offsetWidth;
+            saveColWidths();
+            document.removeEventListener("mousemove", onMove);
+            document.removeEventListener("mouseup", onUp);
+          }
+        }
+
+
+      /* ============================================================
+         COLUMN DRAG-REORDER
+         ============================================================ */
+      let dragSrcCol = null;
+      function wireDrag(th, colId){
+        th.addEventListener("dragstart", (e) => {
+          dragSrcCol = colId;
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", colId);
+        });
+
+        th.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+        });
+
+        th.addEventListener("drop", (e) => {
+          e.preventDefault();
+          const from = dragSrcCol || e.dataTransfer.getData("text/plain");
+          const to = colId;
+          if (!from || from === to) return;
+
+          const fromIdx = colOrder.indexOf(from);
+          const toIdx = colOrder.indexOf(to);
+
+          colOrder.splice(fromIdx, 1);
+          colOrder.splice(toIdx, 0, from);
+
+          saveColOrder();
+          renderHeader();
+          renderBody(viewRows);
+        });
+      }
+
+      /* ============================================================
+         PAGING BUTTONS
+         ============================================================ */
+      prevPageBtn.addEventListener("click", () => {
+        page -= 1;
+        renderPage();
+      });
+
+      nextPageBtn.addEventListener("click", () => {
+        page += 1;
+        renderPage();
+      });
+
+      if (pageSizeEl) {
+        pageSizeEl.addEventListener("change", () => {
+          pageSize = Number(pageSizeEl.value) || 100;
+          page = 1;
+          renderPage();
+        });
+      }
+
+      /* ============================================================
+         RELATIVE/ABSOLUTE TOGGLE
+         ============================================================ */
+      function updateToggleLabel(){
+        toggleTimeBtn.textContent = showRelativeTime
+          ? "Show absolute time"
+          : "Show relative time";
+      }
+
+      toggleTimeBtn.addEventListener("click", () => {
+        showRelativeTime = !showRelativeTime;
+        localStorage.setItem(LS_KEY_TIME_MODE, JSON.stringify(showRelativeTime));
+        updateToggleLabel();
+        renderBody(viewRows);
+      });
+      updateToggleLabel();
+
+      /* ============================================================
+         DEFAULT TIME SORT
+         ============================================================ */
+      function forceDefaultTimeSort(){
+        const chosen =
+          (columns.includes(DEFAULT_TIME_SORT_COL)
+            ? DEFAULT_TIME_SORT_COL
+            : (columns.find(isTimeLikeColumn) || ""));
+
+        if (!chosen) return;
+
+        timeSortKey = chosen;
+        timeSortSelect.value = chosen;
+        localStorage.setItem(LS_KEY_TIME_SORT, JSON.stringify(timeSortKey));
+
+        sortState.col = chosen;
+        sortState.dir = "desc";
+      }
+
+      /* ============================================================
+         FETCH DATA
+         ============================================================ */
+      async function fetchData(){
+        msgEl.className = "muted";
+        // msgEl.textContent = "Loading…";
+        page = 1;
+
+        const res = await fetch(DATA_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status} when fetching ${DATA_URL}`);
+        const payload = await res.json();
+
+        const rawRows = extractRows(payload);
+        allRows = rawRows.filter(r => r && typeof r === "object" && !Array.isArray(r));
+
+        columns = computeColumns(allRows);
+        if (!columns.length) {
+          msgEl.className = "error";
+          msgEl.textContent = "No columns found. Ensure /api/data returns an array of objects.";
+          return;
+        }
+
+        const sk = schemaKey(columns);
+        LS_KEY_ORDER  = sk + ".colOrder";
+        LS_KEY_WIDTHS = sk + ".colWidths";
+
+        populateTimeSortOptions();
+
+        const savedOrder = loadJSON(LS_KEY_ORDER);
+        if (savedOrder && Array.isArray(savedOrder) && savedOrder.length) {
+          colOrder = savedOrder.filter(c => columns.includes(c));
+          for (const c of columns) if (!colOrder.includes(c)) colOrder.push(c);
+        } else {
+          colOrder = [...columns];
+        }
+
+        colWidths = loadJSON(LS_KEY_WIDTHS) || {};
+        if (!Object.keys(colWidths).length) {
+          colWidths = computeContentBasedWidths(allRows);
+          localStorage.setItem(LS_KEY_WIDTHS, JSON.stringify(colWidths));
+        }
+
+        forceDefaultTimeSort();
+
+        msgEl.textContent = "";
+        renderHeader();
+        applyFilterSortRender();
+        colWidths = computeContentBasedWidths(allRows);
+      }
+
+      /* ============================================================
+         EVENT WIRING
+         ============================================================ */
+      searchEl.addEventListener("input", applyFilterSortRender);
+      resetBtn.addEventListener("click", resetLayout);
+      refreshBtn.addEventListener("click", () => fetchData().catch(showError));
+
+      setInterval(() => {
+        renderBody(viewRows);
+      }, 1000 * 30);
+
+      // Automatically trigger the button click every 5 seconds
+      setInterval(() => {
+          fetchData().catch(showError);
+      }, 2000); 
+
+      /* ============================================================
+         ERROR HANDLING
+         ============================================================ */
+      function showError(e){
+        msgEl.className = "error";
+        msgEl.textContent =
+          "Failed to load data from /api/data.\n\n" +
+          String(e) +
+          "\n\nCheck that the server is running and your JSON is valid.\n" +
+          "Expected: an array of objects like [{\"Job ID\":\"...\",\"Status\":\"...\"}].";
+      }
+
+      /* ============================================================
+         INITIAL LOAD
+         ============================================================ */
+      fetchData().catch(showError);
+    </script>
+  </div>
+</body>
+</html>

@@ -60,8 +60,17 @@ def run_progress_bar(path_to_file, model_type):
                 render_progress = cfg['render_progress']
                 tracking_progress = cfg['tracking_progress']
                 filename = cfg['filename']
+                error = cfg['error']
+                error_msg = cfg['error_msg']
             except:
                 pass
+
+            if error:
+                task.setProgress(100)
+                nuke.message('Sorry I bumped into an error. Cancelling now. You can read the error in the terminal/script editor')
+                print(error_msg)
+                nuke.tprint(error_msg)
+                return False
 
             progress = int((int(render_progress.replace('%','')) + int(tracking_progress.replace('%',''))) / 2 )
 
@@ -180,6 +189,7 @@ class Loader(object):
             filename = file['filename']
             error = file['error']
             cancelled = file['is_cancelled']
+            error_msg = file['error_msg']
 
 
             # Check if file is the first in queue
@@ -226,6 +236,8 @@ class Loader(object):
                                         nuke.tcl('in root {%s}' % f.read())
                                 count = 40
                     count +=1
+            elif self.timer_completed and error:
+                print(f'There was en while processing. Here is the message: {error_msg}')
 
         return self.timer_completed
 
