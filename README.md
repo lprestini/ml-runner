@@ -33,6 +33,8 @@ The web serve is a simple python app that display a json file on html. To allow 
 Opening a port on a public network can expose your computer to vulnerabilities so be safe. 
 In most VFX facilities this is fine as the network is already very safe so opening a port would be only visible by people on your network. But again - be safe and speak wiht IT/SysAdmin if you aren't sure what you are doing. 
 
+
+
 To disbale the web server simply run: 
 ```
 python ml-runner.py --listen_dir /path/to/listen_dir --no-web_server
@@ -237,3 +239,5 @@ git clone https://huggingface.co/facebook/sam3
 
 So far I have only implemented the semantic segmentation functionality as the box mode doesnt support the text and seems to be performing like sam2. 
 Happy to go back to it eventually.
+
+⚠️ Disclaimer: This server is provided as-is. The maintainers take no responsibility for how it is used. You are solely responsible for compliance with laws and safe operation.
