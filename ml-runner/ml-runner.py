@@ -14,6 +14,7 @@
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
+from pathlib import Path
 import os
 import json
 import time
@@ -47,6 +48,8 @@ from model_scripts.run_depth_anything3 import run_depth_anything3
 from transformers import AutoProcessor, AutoModelForCausalLM
 
 
+MODEL_CONFIG_FP = Path(__file__).parent / "model_config.json"
+
 base_path = os.path.join(
     os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), "third_party_models"
 ).replace("\\", "/")
@@ -68,7 +71,6 @@ sys.path.append(
 )
 sys.path.append(os.path.join(base_path, "depth_anything3/").replace("\\", "/"))
 
-
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
 
@@ -84,7 +86,7 @@ class MLRunner(object):
         self.model_config_paths = "./model_configs"
         self.ml_logger = logging.getLogger("ML_Runner")
         self.ml_logger.setLevel("INFO")
-        self.model_configs = self.read_model_configs()
+        self.model_config = self.read_model_configs()
         self.use_florence = use_florence  #
         self.prev_path = None
         self.prev_idx = None
@@ -203,15 +205,8 @@ class MLRunner(object):
         return self.job_config
 
     def read_model_configs(self):
-        self.model_configs = {}
-
-        for i in os.listdir(self.model_config_paths):
-            if i.endswith("json"):
-                with open(
-                    os.path.join(self.model_config_paths, i).replace("\\", "/"), "r"
-                ) as f:
-                    self.model_configs[i.replace(".json", "")] = json.load(f)
-        return self.model_configs
+        with open(MODEL_CONFIG_FP) as f:
+            return json.load(f)
 
     def sam_definition(
         self,
@@ -233,8 +228,8 @@ class MLRunner(object):
         delimiter=".",
     ):
         sam = self.supported_models["sam"](
-            self.model_configs["sam"]["checkpoint_path"],
-            self.model_configs["sam"]["config_path"],
+            self.model_config["sam"]["checkpoint_path"],
+            self.model_config["sam"]["config_path"],
             video_dir,
             numpy_img_list,
             render_dir,
@@ -277,7 +272,7 @@ class MLRunner(object):
         delimiter=".",
     ):
         sam = self.supported_models["sam3"](
-            self.model_configs["sam3"]["checkpoint_path"],
+            self.model_config["sam3"]["checkpoint_path"],
             video_dir,
             numpy_img_list,
             render_dir,
@@ -317,7 +312,7 @@ class MLRunner(object):
         use_gdino=True,
     ):
         dam = self.supported_models["dam"](
-            self.model_configs["dam"]["checkpoint_path"],
+            self.model_config["dam"]["checkpoint_path"],
             first_frame_sequence,
             numpy_img_list,
             render_dir,
@@ -369,10 +364,10 @@ class MLRunner(object):
     ):
         gdino_path = [i for i in sys.path if "dino" in i.lower()][0]
         gdino_configs = os.path.join(
-            gdino_path, self.model_configs["gdino"]["config_path"]
+            gdino_path, self.model_config["gdino"]["config_path"]
         ).replace("\\", "/")
         gdino_checkpoint = os.path.join(
-            gdino_path, self.model_configs["gdino"]["checkpoint_path"]
+            gdino_path, self.model_config["gdino"]["checkpoint_path"]
         ).replace("\\", "/")
         gdino = self.supported_models["gdino"](
             image_arr,
@@ -402,10 +397,10 @@ class MLRunner(object):
         delimiter=".",
     ):
         unet_path = os.path.abspath(
-            self.model_configs["depth_crafter"]["unet_path"]
+            self.model_config["depth_crafter"]["unet_path"]
         ).replace("\\", "/")
         pretrain_path = os.path.abspath(
-            self.model_configs["depth_crafter"]["pretrain_path"]
+            self.model_config["depth_crafter"]["pretrain_path"]
         ).replace("\\", "/")
         depth_crafter = self.supported_models["depth_crafter"](
             pretrain_path,
@@ -439,7 +434,7 @@ class MLRunner(object):
         delimiter=".",
     ):
         pretrain_path = os.path.abspath(
-            self.model_configs["depth_anything3"]["pretrain_path"]
+            self.model_config["depth_anything3"]["pretrain_path"]
         ).replace("\\", "/")
         depth_anything = self.supported_models["depth_anything3"](
             pretrain_path,
@@ -473,7 +468,7 @@ class MLRunner(object):
         delimiter=".",
     ):
         pretrain_path = os.path.abspath(
-            self.model_configs["rgb2x"]["pretrain_path"]
+            self.model_config["rgb2x"]["pretrain_path"]
         ).replace("\\", "/")
         rgb2x = self.supported_models["rgb2x"](
             pretrain_path,
@@ -510,7 +505,7 @@ class MLRunner(object):
         use_gdino=True,
     ):
         cotracker = self.supported_models["cotracker"](
-            self.model_configs["cotracker"]["checkpoint_path"],
+            self.model_config["cotracker"]["checkpoint_path"],
             numpy_img_list,
             render_dir,
             render_name,

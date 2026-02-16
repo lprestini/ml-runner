@@ -223,7 +223,7 @@ git lfs install
 git clone https://huggingface.co/depth-anything/DA3-GIANT
 ```
 
-Important note, if you want to use other checkpoints other than the DA3-GIANT - you'll need to download the weights and edit the path in `ml-runner/ml-runner/model_configs/depth_anything3.json` to reflect what model you want to use. 
+Important note, if you want to use other checkpoints other than the DA3-GIANT - you'll need to download the weights and edit the path in `ml-runner/ml-runner/model-config.json` to reflect what model you want to use.
 
 # Installing SAM3
 
