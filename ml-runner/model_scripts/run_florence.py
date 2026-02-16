@@ -12,6 +12,7 @@
 ######################################################################
 
 import sys
+
 # dino_path = '/workspace/lucap/GroundingDINO'
 # sys.path.append(dino_path)
 import os
@@ -23,12 +24,22 @@ import cv2
 import sys
 import requests
 
-from transformers import AutoProcessor, AutoModelForCausalLM 
-
+from transformers import AutoProcessor, AutoModelForCausalLM
 
 
 class run_florence(object):
-    def __init__(self,image, model, prcoessor, caption, box_threshold, text_threshold = None, with_logits = True, H = None, W = None):
+    def __init__(
+        self,
+        image,
+        model,
+        prcoessor,
+        caption,
+        box_threshold,
+        text_threshold=None,
+        with_logits=True,
+        H=None,
+        W=None,
+    ):
         self.image = image
 
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -54,10 +65,12 @@ class run_florence(object):
         self.pred_phrases = None
         return None
 
-    def run_example(self, image, task_prompt, text_input=''):
+    def run_example(self, image, task_prompt, text_input=""):
 
         prompt = task_prompt + text_input
-        inputs = self.processor(text=prompt, images=image, return_tensors="pt").to('cuda', torch.float16)
+        inputs = self.processor(text=prompt, images=image, return_tensors="pt").to(
+            "cuda", torch.float16
+        )
         generated_ids = self.model.generate(
             input_ids=inputs["input_ids"].cuda(),
             pixel_values=inputs["pixel_values"].cuda(),
@@ -66,16 +79,20 @@ class run_florence(object):
             num_beams=3,
             early_stopping=False,
         )
-        generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=False)[0]
+        generated_text = self.processor.batch_decode(
+            generated_ids, skip_special_tokens=False
+        )[0]
         if not self.H or not self.W:
             self.H, self.W, C = self.image.shape
         parsed_answer = self.processor.post_process_generation(
-            generated_text,
-            task=task_prompt,
-            image_size=(self.W, self.H)
+            generated_text, task=task_prompt, image_size=(self.W, self.H)
         )
         return parsed_answer
-    
+
     def run(self):
-        result = self.run_example(self.image, '<CAPTION_TO_PHRASE_GROUNDING>', self.caption)
-        return result['<CAPTION_TO_PHRASE_GROUNDING>']['bboxes'], result['<CAPTION_TO_PHRASE_GROUNDING>']['labels']
+        result = self.run_example(
+            self.image, "<CAPTION_TO_PHRASE_GROUNDING>", self.caption
+        )
+        return result["<CAPTION_TO_PHRASE_GROUNDING>"]["bboxes"], result[
+            "<CAPTION_TO_PHRASE_GROUNDING>"
+        ]["labels"]
