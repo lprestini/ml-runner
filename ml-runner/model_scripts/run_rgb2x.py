@@ -1,5 +1,4 @@
 import os
-import numpy as np
 import torch
 import cv2
 from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
@@ -96,7 +95,6 @@ class run_rgb2x(object):
 
         inference_step = 50
         B, C, height, width = img_tensor.shape
-        progress = 0
         for idx, frame in enumerate(img_tensor):
             # Check for abort render file and delete file
             if check_for_abort_render(

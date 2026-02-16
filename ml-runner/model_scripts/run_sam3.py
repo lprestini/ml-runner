@@ -1,19 +1,18 @@
 import os
 import numpy as np
 import torch
-from PIL import Image
 import cv2
-import sys
+
+# import sam3
+from sam3.model_builder import build_sam3_video_predictor_only
+from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+
 
 # select the device for computation
 if torch.cuda.is_available():
     device = torch.device("cuda")
 
 print(f"using device: {device}")
-
-# import sam3
-from sam3.model_builder import build_sam3_video_predictor_only
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 class runSAM3(object):
@@ -67,7 +66,7 @@ class runSAM3(object):
         self.inference_state = inference_state
         self.name_idx = name_idx
         self.delimiter = delimiter
-        self.is_limit = self.limit_range != False
+        self.is_limit = self.limit_range
         self.text_prompt = text_prompt
 
         ##Debug paramters
@@ -94,11 +93,11 @@ class runSAM3(object):
         ## If the model returns an image that you don't expect, its probable that the error comes from here
         # I've edited this function so that it takes in shot name as well
         if not self.inference_state:
-            self.logger.info(f"Loading video")
+            self.logger.info("Loading video")
             self.inference_state = self.predictor.init_state(
                 resource_path=self.video_dir, numpy_img_list=self.numpy_img_list
             )
-            self.logger.info(f"Video loaded")
+            self.logger.info("Video loaded")
         else:
             self.logger.info("Using cached video!")
 
@@ -111,7 +110,7 @@ class runSAM3(object):
             self.ann_frame_idx -= self.limit_range[0]
 
         # Flip boxes if they're coming from Nuke
-        if all(i != None for i in self.boxes_filt):
+        if all(i is not None for i in self.boxes_filt):
             for idx, b in enumerate(self.boxes_filt):
                 self.boxes_filt[idx] = np.array(
                     [self.flip_boxes(b, self.H, self.W)]

@@ -14,18 +14,17 @@
 import os
 import numpy as np
 import torch
-from PIL import Image
 import cv2
-import sys
+
+from edited_sam2.sam2.build_sam import build_sam2_video_predictor
+from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+
 
 # select the device for computation
 if torch.cuda.is_available():
     device = torch.device("cuda")
 
 print(f"using device: {device}")
-
-from edited_sam2.sam2.build_sam import build_sam2_video_predictor
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 class runSAM2(object):
@@ -82,7 +81,7 @@ class runSAM2(object):
         self.inference_state = inference_state
         self.name_idx = name_idx
         self.delimiter = delimiter
-        self.is_limit = self.limit_range != False
+        self.is_limit = self.limit_range
 
         ##Debug paramters
         self.render = True  ## This is for debug only
@@ -108,7 +107,7 @@ class runSAM2(object):
         ## If the model returns an image that you don't expect, its probable that the error comes from here
         # I've edited this function so that it takes in shot name as well
         if not self.inference_state:
-            self.logger.info(f"Loading video")
+            self.logger.info("Loading video")
             self.inference_state = self.predictor.init_state(
                 video_path=self.video_dir,
                 shot_name=self.shot_name,
@@ -116,7 +115,7 @@ class runSAM2(object):
                 delimiter=self.delimiter,
                 numpy_img_list=self.numpy_img_list,
             )
-            self.logger.info(f"Video loaded")
+            self.logger.info("Video loaded")
         else:
             self.logger.info("Using cached video!")
 

@@ -14,12 +14,12 @@
 import os
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-from PIL import Image
 import cv2
-import sys
-import glob
 from tqdm import tqdm
+
+from edited_dam4sam.dam4sam_tracker import DAM4SAMTracker
+from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+
 
 # select the device for computation
 if torch.cuda.is_available():
@@ -27,9 +27,6 @@ if torch.cuda.is_available():
 
 print(f"using device: {device}")
 # print(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'third_party_models', 'edited_dam4sam'))
-from edited_dam4sam.dam4sam_tracker import DAM4SAMTracker
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
-import PyOpenColorIO as OCIO
 
 
 class runDAM4SAM(object):
@@ -218,8 +215,6 @@ class runDAM4SAM(object):
             self.logger.info(
                 f"Segmenting object ID {idx} out of {len(self.boxes_filt)}"
             )
-            ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
-
             # Cant specify to start from frame 0 so we have to do this in 2 passes if ann frame idx != 0
             # First pass
             self.logger.info("Track mask forward")

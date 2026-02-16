@@ -11,25 +11,18 @@
 # limitations under the License.
 ######################################################################
 
-import sys
 
 # dino_path = '/workspace/lucap/GroundingDINO'
 # sys.path.append(dino_path)
 import os
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
-from PIL import Image
-import cv2
-import sys
 from PIL import Image
 import groundingdino.datasets.transforms as T
 from groundingdino.models import build_model
-from groundingdino.util import box_ops
 from groundingdino.util.slconfig import SLConfig
 from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
 from groundingdino.util.vl_utils import create_positive_map_from_span
-import os
 
 
 class run_gdino(object):
@@ -95,9 +88,7 @@ class run_gdino(object):
         args.device = "cuda" if not cpu_only else "cpu"
         model = build_model(args)
         checkpoint = torch.load(self.model_checkpoint_path, map_location="cpu")
-        load_res = model.load_state_dict(
-            clean_state_dict(checkpoint["model"]), strict=False
-        )
+        model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
         _ = model.eval()
         return model
 
@@ -112,7 +103,6 @@ class run_gdino(object):
         device = "cuda" if not cpu_only else "cpu"
         model = self.model.to(device)
         image = self.transformed_image.to(device)
-        shape_size = image.shape
 
         with torch.no_grad():
             outputs = model(image[None], captions=[caption])
@@ -203,7 +193,7 @@ class run_gdino(object):
         self.transformed_image = self.load_image()
 
         H, W = (self.H, self.W)
-        if self.H == None or self.W == None:
+        if self.H is None or self.W is None:
             H, W, C = self.image.shape
 
         # run model

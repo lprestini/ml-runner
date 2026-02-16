@@ -12,7 +12,6 @@
 ######################################################################
 
 import os
-import numpy as np
 import torch
 
 from diffusers.training_utils import set_seed

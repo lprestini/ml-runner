@@ -16,11 +16,10 @@ from __future__ import annotations
 from flask import Flask, jsonify, send_from_directory, request, abort
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import socket
 import logging
 import ipaddress
-import os
 
 
 class MLRunnerServer:

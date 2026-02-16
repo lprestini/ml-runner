@@ -12,12 +12,9 @@
 ######################################################################
 
 import os
-import numpy as np
 import torch
 
 from cotracker.predictor import CoTrackerOnlinePredictor
-import cv2
-import torchvision.transforms.functional as tvf
 import torch.nn.functional as F
 from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
@@ -279,7 +276,6 @@ class run_cotracker(object):
                     queries=queries,
                 )
                 bwd_tracks = []
-                bwd_vis = []
                 self.logger.info("Track shot backward")
                 # TODO Fix bug here with padding
                 for ind in range(

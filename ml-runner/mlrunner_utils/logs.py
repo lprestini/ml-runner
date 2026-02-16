@@ -13,7 +13,6 @@
 
 import os
 import json
-import math
 
 
 def write_stats_file(

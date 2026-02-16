@@ -13,6 +13,7 @@
 
 import json
 import os
+import threading
 import uuid
 import nuke
 import nukescripts
@@ -20,13 +21,13 @@ import time
 
 
 if nuke.NUKE_VERSION_MAJOR > 15:
-    from PySide6 import QtWidgets, QtGui
+    from PySide6 import QtWidgets
 
     # from PySide6.QtWidgets import QPushButton, QSizePolicy
-    from PySide6.QtCore import Qt, QObject, QEvent
+    from PySide6.QtCore import QObject, QEvent
 else:
-    from PySide2 import QtWidgets, QtGui
-    from PySide2.QtCore import Qt, QObject, QEvent
+    from PySide2 import QtWidgets
+    from PySide2.QtCore import QObject, QEvent
 
 
 def cancel_task():
@@ -63,7 +64,7 @@ def run_progress_bar(path_to_file, model_type):
                 filename = cfg["filename"]
                 error = cfg["error"]
                 error_msg = cfg["error_msg"]
-            except:
+            except Exception:
                 pass
 
             if error:
@@ -435,7 +436,7 @@ if all_good:
     config["passes"] = ["albedo", "roughness", "metallic", "normal", "irradiance"]
     if not node["all_passes"].value():
         pass_knobs = config["passes"]
-        config["passes"] = [i for i in pass_knobs if node[i].value() == True]
+        config["passes"] = [i for i in pass_knobs if node[i].value()]
 
     # Not implemented yet
     config["multisequence"] = False

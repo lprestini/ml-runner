@@ -11,20 +11,10 @@
 # limitations under the License.
 ######################################################################
 
-import sys
 
 # dino_path = '/workspace/lucap/GroundingDINO'
 # sys.path.append(dino_path)
-import os
-import numpy as np
 import torch
-import matplotlib.pyplot as plt
-from PIL import Image
-import cv2
-import sys
-import requests
-
-from transformers import AutoProcessor, AutoModelForCausalLM
 
 
 class run_florence(object):

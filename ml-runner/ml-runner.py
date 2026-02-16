@@ -19,9 +19,7 @@ import json
 import time
 import logging
 import sys
-from PIL import Image
 import torch
-import cv2
 import traceback
 import argparse
 import threading
@@ -36,6 +34,18 @@ from mlrunner_utils.imgutils import (
     load_mov_to_numpy,
 )
 from mlrunner_utils.logs import write_stats_file
+
+from model_scripts.run_sam import runSAM2
+from model_scripts.run_sam3 import runSAM3
+from model_scripts.run_florence import run_florence
+from model_scripts.run_dam4sam import runDAM4SAM
+from model_scripts.run_gdino import run_gdino
+from model_scripts.run_depth_crafter import run_depth_crafter
+from model_scripts.run_rgb2x import run_rgb2x
+from model_scripts.run_cotracker import run_cotracker
+from model_scripts.run_depth_anything3 import run_depth_anything3
+from transformers import AutoProcessor, AutoModelForCausalLM
+
 
 base_path = os.path.join(
     os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), "third_party_models"
@@ -58,16 +68,6 @@ sys.path.append(
 )
 sys.path.append(os.path.join(base_path, "depth_anything3/").replace("\\", "/"))
 
-from model_scripts.run_sam import runSAM2
-from model_scripts.run_sam3 import runSAM3
-from model_scripts.run_florence import run_florence
-from model_scripts.run_dam4sam import runDAM4SAM
-from model_scripts.run_gdino import run_gdino
-from model_scripts.run_depth_crafter import run_depth_crafter
-from model_scripts.run_rgb2x import run_rgb2x
-from model_scripts.run_cotracker import run_cotracker
-from model_scripts.run_depth_anything3 import run_depth_anything3
-from transformers import AutoProcessor, AutoModelForCausalLM
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
@@ -197,7 +197,7 @@ class MLRunner(object):
             with open(filename, "r") as f:
                 try:
                     self.job_config = json.load(f)
-                except json.decoder.JSONDecodeError as e:
+                except json.decoder.JSONDecodeError:
                     time.sleep(1)
                     self.job_config = json.load(f)
         return self.job_config
@@ -532,7 +532,7 @@ class MLRunner(object):
         if not self.is_same_path:
             try:
                 del self.model
-            except:
+            except AttributeError:
                 self.ml_logger.error("tried to release model from memory but failed")
             self.model = None
 
@@ -556,7 +556,6 @@ class MLRunner(object):
         id_class = config["id_class"]
         text_prompt = config["id_class"] if not "" else None
         bbox = config["crop_position"] if config["crop_position"] else [None]
-        multisequence = config["multisequence"]
         path_to_sequence = config["path_to_sequence"]
         shot_name = config["shot_name"]
         ext = os.path.splitext(shot_name)[-1].lower()
@@ -665,7 +664,7 @@ class MLRunner(object):
                     self.frame_names = get_frame_list(
                         path_to_sequence, shot_name, delimiter
                     )
-                    self.ml_logger.info(f"Frames list fetched!")
+                    self.ml_logger.info("Frames list fetched!")
                 else:
                     self.frame_names = list(range(mov_last_frame))
             else:
@@ -680,7 +679,7 @@ class MLRunner(object):
                     self.loaded_frames = load_imgs_to_numpy(
                         self.frame_names, to_srgb=is_srgb
                     )
-                    self.ml_logger.info(f"Frames loaded!")
+                    self.ml_logger.info("Frames loaded!")
                 elif not self.loaded_frames and is_mov:
                     mov_first_frame = 0
                     if limit_range:
@@ -700,20 +699,20 @@ class MLRunner(object):
                             f"There was an error loading {len(failed_frames)} frames. These are the failed frames:\n{frames_messages}"
                         )
                     else:
-                        self.ml_logger.info(f"Mov loaded!")
+                        self.ml_logger.info("Mov loaded!")
                 else:
-                    self.ml_logger.info(f"Using cached video!")
-            except:
+                    self.ml_logger.info("Using cached video!")
+            except Exception:
                 raise ValueError(
                     "Something went wrong while loading the images to numpy."
                 )
 
-            self.ml_logger.info(f"Fetching image info..")
+            self.ml_logger.info("Fetching image info..")
             try:
                 image_arr = self.loaded_frames[frame_idx]
                 H, W = get_im_width_height(image_arr)
-                self.ml_logger.info(f"Fetched image info")
-            except IndexError as e:
+                self.ml_logger.info("Fetched image info")
+            except IndexError:
                 raise IndexError(
                     f"Failed to fetch image information. Here is the frame list info: list lenght: {len(self.frame_names)} frame index: {frame_idx}"
                 )
@@ -731,7 +730,7 @@ class MLRunner(object):
                         image_arr, id_class, box_threshold, text_threshold, H, W
                     )
                 bbox, pred_phrases = gdino.run()
-                self.ml_logger.info(f"BBox fetched!")
+                self.ml_logger.info("BBox fetched!")
             else:
                 # If we're not using a model like gdino/florence we need to ensure that pred phrases is set to a list == to the bbox indices
                 if not text_prompt:
@@ -889,10 +888,10 @@ class MLRunner(object):
             error = str(e)
             if isinstance(e, KeyError):
                 self.ml_logger.error(
-                    f"Florence model seems to have failed. try a different frame or pass a boundibox yourself"
+                    "Florence model seems to have failed. try a different frame or pass a boundibox yourself"
                 )
             if "cuda out of memory" in str(e).lower():
-                self.ml_logger.error(f"Looks like you run out of memory!")
+                self.ml_logger.error("Looks like you run out of memory!")
                 error = "Out of memory"
             write_stats_file(
                 render_to, [render_name], uuid, "0%", "0%", True, error_msg=error
@@ -910,7 +909,7 @@ class MLRunner(object):
             if use_gdino:
                 del gdino
             torch.cuda.empty_cache()
-        except Exception as e:
+        except Exception:
             self.ml_logger.error("tried to release some memory but failed")
             self.ml_logger.error(f"ERROR:{traceback.format_exc()}")
 
@@ -1138,14 +1137,14 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        runner.ml_logger.error(f"User interrupted the server, shutting down")
+        runner.ml_logger.error("User interrupted the server, shutting down")
         runner.inform_server_running(closing=True)
         try:
             sys.exit(130)
         except SystemExit:
             os._exit(130)
     finally:
-        runner.ml_logger.info(f"Shutting down server")
+        runner.ml_logger.info("Shutting down server")
         runner.inform_server_running(closing=True)
         observer.stop()
         sys.exit()

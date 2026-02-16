@@ -13,13 +13,10 @@
 
 import os
 import numpy as np
-import torch
 
 from depth_anything_3.api import DepthAnything3
 from depth_anything_3.dp_utils.visualize import visualize_depth
 import cv2
-import torchvision.transforms.functional as tvf
-import torch.nn.functional as F
 from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
