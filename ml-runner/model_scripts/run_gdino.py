@@ -18,11 +18,16 @@ import os
 import numpy as np
 import torch
 from PIL import Image
-import groundingdino.datasets.transforms as T
-from groundingdino.models import build_model
-from groundingdino.util.slconfig import SLConfig
-from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
-from groundingdino.util.vl_utils import create_positive_map_from_span
+import warnings
+
+try:
+    import groundingdino.datasets.transforms as T
+    from groundingdino.models import build_model
+    from groundingdino.util.slconfig import SLConfig
+    from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
+    from groundingdino.util.vl_utils import create_positive_map_from_span
+except ImportError:
+    warnings.warn("Unable to import optional model gdino")
 
 
 class run_gdino(object):

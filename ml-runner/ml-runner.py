@@ -11,6 +11,8 @@
 # limitations under the License.
 ######################################################################
 
+# ruff: noqa: E402
+
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 from watchdog.observers.polling import PollingObserver
@@ -36,19 +38,6 @@ from mlrunner_utils.imgutils import (
 )
 from mlrunner_utils.logs import write_stats_file
 
-from model_scripts.run_sam import runSAM2
-from model_scripts.run_sam3 import runSAM3
-from model_scripts.run_florence import run_florence
-from model_scripts.run_dam4sam import runDAM4SAM
-from model_scripts.run_gdino import run_gdino
-from model_scripts.run_depth_crafter import run_depth_crafter
-from model_scripts.run_rgb2x import run_rgb2x
-from model_scripts.run_cotracker import run_cotracker
-from model_scripts.run_depth_anything3 import run_depth_anything3
-from transformers import AutoProcessor, AutoModelForCausalLM
-
-
-MODEL_CONFIG_FP = Path(__file__).parent / "model_config.json"
 
 base_path = os.path.join(
     os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), "third_party_models"
@@ -70,6 +59,21 @@ sys.path.append(
     )
 )
 sys.path.append(os.path.join(base_path, "depth_anything3/").replace("\\", "/"))
+
+# TODO: Evaluate available models at runtime
+from model_scripts.run_sam import runSAM2
+from model_scripts.run_sam3 import runSAM3
+from model_scripts.run_florence import run_florence
+from model_scripts.run_dam4sam import runDAM4SAM
+from model_scripts.run_gdino import run_gdino
+from model_scripts.run_depth_crafter import run_depth_crafter
+from model_scripts.run_rgb2x import run_rgb2x
+from model_scripts.run_cotracker import run_cotracker
+from model_scripts.run_depth_anything3 import run_depth_anything3
+from transformers import AutoProcessor, AutoModelForCausalLM
+
+
+MODEL_CONFIG_FP = Path(__file__).parent / "model_config.json"
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
 
