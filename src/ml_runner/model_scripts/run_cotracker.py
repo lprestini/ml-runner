@@ -20,7 +20,7 @@ try:
 except ImportError:
     warnings.warn("Unable to import optional model cotracker")
 import torch.nn.functional as F
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 class run_cotracker(object):

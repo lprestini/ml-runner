@@ -16,9 +16,13 @@ import numpy as np
 import torch
 import cv2
 from tqdm import tqdm
+import warnings
 
-from edited_dam4sam.dam4sam_tracker import DAM4SAMTracker
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+try:
+    from edited_dam4sam.dam4sam_tracker import DAM4SAMTracker
+except ImportError:
+    warnings.warn("Unable to import optional model dam4sam")
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 # select the device for computation

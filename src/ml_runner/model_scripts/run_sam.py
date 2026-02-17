@@ -17,7 +17,7 @@ import torch
 import cv2
 
 from edited_sam2.sam2.build_sam import build_sam2_video_predictor
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 # select the device for computation
