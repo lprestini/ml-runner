@@ -24,7 +24,6 @@ import logging
 import sys
 import torch
 import traceback
-import argparse
 import threading
 from datetime import datetime
 import queue
@@ -1063,47 +1062,11 @@ class MLRunnerHandler(FileSystemEventHandler):
                 self.start_runner()
 
 
-if __name__ == "__main__":
+def main(listen_path, use_florence, use_web_server, use_allow_list, port):
     logging.basicConfig(
         format="[%(asctime)s][%(levelname)s]: %(message)s", level=logging.INFO
     )
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
-    parser = argparse.ArgumentParser(prog="MLRunner")
-    parser.add_argument(
-        "-l",
-        "--listen_dir",
-        required=True,
-        help="Directory to listen for config delivery on.",
-    )
-    parser.add_argument(
-        "-f",
-        "--use_florence",
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help="Whether to use florence or grounding dino",
-    )
-    parser.add_argument(
-        "-wb",
-        "--web_server",
-        default=True,
-        action=argparse.BooleanOptionalAction,
-        help="Whether to use web server or not",
-    )
-    parser.add_argument(
-        "--ip_allow_list",
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help="Whether to use an IP allow least to reach the webserver",
-    )
-    parser.add_argument(
-        "-p", "--port", default=8001, help="What port to use for the web server"
-    )
-    args = parser.parse_args()
-    listen_path = args.listen_dir
-    use_florence = args.use_florence
-    use_web_server = args.web_server
-    use_allow_list = args.ip_allow_list
-    port = args.port
 
     assert os.path.isdir(listen_path), (
         "Hey the path you passed doesnt exists. Pleas insert a valid path"
@@ -1148,3 +1111,51 @@ if __name__ == "__main__":
         runner.inform_server_running(closing=True)
         observer.stop()
         sys.exit()
+
+
+def cli_entrypoint():
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="MLRunner")
+    parser.add_argument(
+        "-l",
+        "--listen_dir",
+        required=True,
+        help="Directory to listen for config delivery on.",
+    )
+    parser.add_argument(
+        "-f",
+        "--use_florence",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Whether to use florence or grounding dino",
+    )
+    parser.add_argument(
+        "-wb",
+        "--web_server",
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help="Whether to use web server or not",
+    )
+    parser.add_argument(
+        "--ip_allow_list",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Whether to use an IP allow least to reach the webserver",
+    )
+    parser.add_argument(
+        "-p", "--port", default=8001, help="What port to use for the web server"
+    )
+    args = parser.parse_args()
+
+    main(
+        args.listen_dir,
+        args.use_florence,
+        args.web_server,
+        args.ip_allow_list,
+        args.port,
+    )
+
+
+if __name__ == "__main__":
+    cli_entrypoint()
