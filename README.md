@@ -115,7 +115,11 @@ Then add the following to your init.py
 
 `nuke.pluginAddPath('/path/to/ml-runner/ml-runner/nuke/')`
 
-# Installing GroundingDINO (This is not required for the basic functionality. It's only used if you want to use semantic detection)
+## Model Installs
+
+Some model installs are made easier with [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+### Installing GroundingDINO (This is not required for the basic functionality. It's only used if you want to use semantic detection)
 To install GroundindDINO, follow the instructions on their page here: https://github.com/IDEA-Research/GroundingDINO
 Or try follow these. 
 If you follow the one on their repository **MAKE SURE TO REMOVE TORCH & TORCHVISION** from their pip requirements.
@@ -156,7 +160,7 @@ cd ..
 If you have weird errors when doing `pip install -e .` try doing `pip install .`
 
 
-# Installing Florence2 
+### Installing Florence2
 This is a replacement repository for GDINO - 
 
 Make sure git lfs is installed 
@@ -170,7 +174,7 @@ git clone https://huggingface.co/microsoft/Florence-2-large
 
 **REMEMBER TO USE THIS YOU NEED TO ENABLE IT IN THE SERVER CODE**
 
-# Installing DepthCrafter
+### Installing DepthCrafter
 
 To install DepthCrafter please run the following comands. 
 Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
@@ -184,7 +188,13 @@ git clone https://huggingface.co/tencent/DepthCrafter
 git clone https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt
 ```
 
-# Installing RGB2X 
+Alternative install with uv:
+```
+uvx hf download tencent/DepthCrafter --local-dir ./third_party_models/depth_crafter/checkpoints/DepthCrafter
+uvx hf download stabilityai/stable-video-diffusion-img2vid-xt --local-dir ./third_party_models/depth_crafter/checkpoints/stable-video-diffusion-img2vid-xt
+```
+
+### Installing RGB2X
 
 To install RGB2X please run the following commands 
 Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
@@ -197,8 +207,12 @@ git lfs install
 git clone https://huggingface.co/zheng95z/rgb-to-x
 ```
 
+Alternative install with uv:
+```
+uvx hf download zheng95z/rgb-to-x --local-dir ./third_party_models/rgb2x/checkpoints/rgb-to-x
+```
 
-# Installing Co-tracker3 
+### Installing Co-tracker3
 
 To install Co-tracker3 please run the following commands 
 Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
@@ -212,8 +226,13 @@ cd cotracker3
 wget https://huggingface.co/facebook/cotracker3/resolve/main/scaled_online.pth
 ```
 
+Alternative install with uv:
+```
+git clone https://github.com/facebookresearch/co-tracker.git ./third_party_models/co-tracker
+uvx hf download --local-dir ./third_party_models/cotracker3 facebook/co-tracker/cotracker3 scaled_online.pth
+```
 
-# Installing DepthAnything3 
+### Installing DepthAnything3
 
 To install DepthAnything3 you simply need to download the weights and move thme at the base of the depth-anything3 folder in third-party-models
 
@@ -223,9 +242,14 @@ git lfs install
 git clone https://huggingface.co/depth-anything/DA3-GIANT
 ```
 
-Important note, if you want to use other checkpoints other than the DA3-GIANT - you'll need to download the weights and edit the path in `ml-runner/ml-runner/model-config.json` to reflect what model you want to use.
+Alternative install with uv:
+```
+uvx hf download --local-dir ./third_party_models/depth_anything3/DA3-GIANT depth-anything/DA3-GIANT
+```
 
-# Installing SAM3
+Important note, if you want to use other checkpoints other than the DA3-GIANT - you'll need to download the weights and edit the path in `src/ml_runner/model_config.json` to reflect what model you want to use.
+
+### Installing SAM3
 
 To install SAM3 you need to download the checkpoint from hugging face. However to do so, you'll need to submit a form to get approval for downloading the checkpoints. 
 Go to [huggingface website](https://huggingface.co/facebook/sam3) and fill out the form. Once approved run the following 
@@ -235,6 +259,11 @@ cd third_party_models/edited_sam3
 mkdir checkpoints && cd checkpoints
 git lfs install 
 git clone https://huggingface.co/facebook/sam3
+```
+
+Alternative install with uv (requires acceptance of agreement at https://huggingface.co/facebook/sam3 to access this model):
+```
+uvx hf download --local-dir ./third_party_models/edited_sam3/checkpoints/sam3 --token <token generated at https://huggingface.co/settings/tokens> facebook/sam3
 ```
 
 So far I have only implemented the semantic segmentation functionality as the box mode doesnt support the text and seems to be performing like sam2. 
