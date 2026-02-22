@@ -229,7 +229,7 @@ wget https://huggingface.co/facebook/cotracker3/resolve/main/scaled_online.pth
 Alternative install with uv:
 ```
 git clone https://github.com/facebookresearch/co-tracker.git ./third_party_models/co-tracker
-uvx hf download --local-dir ./third_party_models/cotracker3 facebook/co-tracker/cotracker3 scaled_online.pth
+uvx hf download --local-dir ./third_party_models/co-tracker/cotracker3 facebook/cotracker3 scaled_online.pth
 ```
 
 ### Installing DepthAnything3
@@ -265,6 +265,8 @@ Alternative install with uv (requires acceptance of agreement at https://hugging
 ```
 uvx hf download --local-dir ./third_party_models/edited_sam3/checkpoints/sam3 --token <token generated at https://huggingface.co/settings/tokens> facebook/sam3
 ```
+> [!NOTE]
+> The following Access Token Permissions must be enabled: _Read access to contents of all public gated repos you can access_
 
 So far I have only implemented the semantic segmentation functionality as the box mode doesnt support the text and seems to be performing like sam2. 
 Happy to go back to it eventually.
