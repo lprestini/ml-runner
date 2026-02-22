@@ -241,3 +241,34 @@ So far I have only implemented the semantic segmentation functionality as the bo
 Happy to go back to it eventually.
 
 ⚠️ Disclaimer: This server is provided as-is. The maintainers take no responsibility for how it is used. You are solely responsible for compliance with laws and safe operation.
+
+## Contributing
+
+### Developer Tooling
+
+The following developer tools are set up for contributing:
+
+**Required**
+- prek: precommit hooks
+- ruff: linting / formatting
+
+**Recommended**
+- uv: packaging
+- GNU Make: helper scripts
+
+To install GNU Make (Rocky 9):
+```
+dnf install make
+```
+
+To [install uv](https://docs.astral.sh/uv/getting-started/installation/#standalone-installer) (Rocky 9):
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+To run the dev setup inc. installing prek precommit hooks:
+```
+make dev
+```
+
+For set up without GNU Make, please see the [Makefile](./Makefile).
