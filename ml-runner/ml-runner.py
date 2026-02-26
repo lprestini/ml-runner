@@ -72,6 +72,8 @@ from model_scripts.run_cotracker import run_cotracker
 from model_scripts.run_depth_anything3 import run_depth_anything3
 
 
+PROJECT_ROOT = Path(__file__).parent.parent
+CONFIGS_PATH = Path(__file__).parent / "configs"
 MODEL_CONFIG_FP = Path(__file__).parent / "model_config.json"
 
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
@@ -109,8 +111,8 @@ class MLRunner(object):
         self.path_remap_replace_path = None
 
         # Set OCIO config path as env variable cause its easier to pass around
-        os.environ["MLRUNNER_OCIOCONFIG_PATH"] = os.path.abspath(
-            os.path.join("configs", "aces1.2", "config.ocio")
+        os.environ["MLRUNNER_OCIOCONFIG_PATH"] = str(
+            CONFIGS_PATH / "aces1.2" / "config.ocio"
         )
 
         self.supported_models = {
@@ -192,6 +194,14 @@ class MLRunner(object):
         with open(MODEL_CONFIG_FP) as f:
             return json.load(f)
 
+    def resolve_model_config_path(self, path):
+        if (
+            Path(path).parts[0] != "third_party_models"
+            and Path(path).parts[0] != "ml-runner"
+        ):
+            return path
+        return PROJECT_ROOT / path
+
     def sam_definition(
         self,
         video_dir,
@@ -212,8 +222,8 @@ class MLRunner(object):
         delimiter=".",
     ):
         sam = self.supported_models["sam"](
-            self.model_config["sam"]["checkpoint_path"],
-            self.model_config["sam"]["config_path"],
+            self.resolve_model_config_path(self.model_config["sam"]["checkpoint_path"]),
+            self.resolve_model_config_path(self.model_config["sam"]["config_path"]),
             video_dir,
             numpy_img_list,
             render_dir,
@@ -256,7 +266,9 @@ class MLRunner(object):
         delimiter=".",
     ):
         sam = self.supported_models["sam3"](
-            self.model_config["sam3"]["checkpoint_path"],
+            self.resolve_model_config_path(
+                self.model_config["sam3"]["checkpoint_path"]
+            ),
             video_dir,
             numpy_img_list,
             render_dir,
@@ -296,7 +308,7 @@ class MLRunner(object):
         use_gdino=True,
     ):
         dam = self.supported_models["dam"](
-            self.model_config["dam"]["checkpoint_path"],
+            self.resolve_model_config_path(self.model_config["dam"]["checkpoint_path"]),
             first_frame_sequence,
             numpy_img_list,
             render_dir,
@@ -324,6 +336,7 @@ class MLRunner(object):
         W=None,
     ):
         florence = self.supported_models["florence"](
+            self.resolve_model_config_path(self.model_config["florence"]["model_path"]),
             image_arr,
             caption,
             box_threshold,
@@ -378,12 +391,12 @@ class MLRunner(object):
         name_idx=0,
         delimiter=".",
     ):
-        unet_path = os.path.abspath(
+        unet_path = self.resolve_model_config_path(
             self.model_config["depth_crafter"]["unet_path"]
-        ).replace("\\", "/")
-        pretrain_path = os.path.abspath(
+        )
+        pretrain_path = self.resolve_model_config_path(
             self.model_config["depth_crafter"]["pretrain_path"]
-        ).replace("\\", "/")
+        )
         depth_crafter = self.supported_models["depth_crafter"](
             pretrain_path,
             unet_path,
@@ -415,9 +428,9 @@ class MLRunner(object):
         name_idx=0,
         delimiter=".",
     ):
-        pretrain_path = os.path.abspath(
+        pretrain_path = self.resolve_model_config_path(
             self.model_config["depth_anything3"]["pretrain_path"]
-        ).replace("\\", "/")
+        )
         depth_anything = self.supported_models["depth_anything3"](
             pretrain_path,
             image_arr,
@@ -449,9 +462,9 @@ class MLRunner(object):
         name_idx=0,
         delimiter=".",
     ):
-        pretrain_path = os.path.abspath(
+        pretrain_path = self.resolve_model_config_path(
             self.model_config["rgb2x"]["pretrain_path"]
-        ).replace("\\", "/")
+        )
         rgb2x = self.supported_models["rgb2x"](
             pretrain_path,
             image_arr,
@@ -487,7 +500,9 @@ class MLRunner(object):
         use_gdino=True,
     ):
         cotracker = self.supported_models["cotracker"](
-            self.model_config["cotracker"]["checkpoint_path"],
+            self.resolve_model_config_path(
+                self.model_config["cotracker"]["checkpoint_path"]
+            ),
             numpy_img_list,
             render_dir,
             render_name,

@@ -133,7 +133,7 @@ class runSAM3(object):
                 f"Segmenting object ID {idx} out of {len(self.boxes_filt)}"
             )
             ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
-            box_labels = [1] if self.boxes_filt[idx] else None
+            box_labels = [1] if self.boxes_filt[idx].any() else None
             inference_dict = self.predictor.add_prompt(
                 inference_state=self.inference_state,
                 frame_idx=self.ann_frame_idx,
