@@ -70,7 +70,6 @@ from model_scripts.run_depth_crafter import run_depth_crafter
 from model_scripts.run_rgb2x import run_rgb2x
 from model_scripts.run_cotracker import run_cotracker
 from model_scripts.run_depth_anything3 import run_depth_anything3
-from transformers import AutoProcessor, AutoModelForCausalLM
 
 
 MODEL_CONFIG_FP = Path(__file__).parent / "model_config.json"
@@ -84,14 +83,12 @@ class MLRunner(object):
             listen_dir if not listen_dir.endswith("/") else listen_dir[:-1]
         )
 
-        self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
-        self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         self.job_config = None
         self.model_config_paths = "./model_configs"
         self.ml_logger = logging.getLogger("ML_Runner")
         self.ml_logger.setLevel("INFO")
-        self.model_config = self.read_model_configs()
-        self.use_florence = use_florence  #
+        self.model_config = self.read_model_config()
+        self.use_florence = use_florence
         self.prev_path = None
         self.prev_idx = None
         self.prev_limit = None
@@ -127,25 +124,8 @@ class MLRunner(object):
             "cotracker": run_cotracker,
             "depth_anything3": run_depth_anything3,
         }
-        if use_florence:
-            self.ml_logger.info(
-                "Loading florence model, this will take a couple of minutes"
-            )
-            self.init_florence()
-            self.ml_logger.info("Loading completed!")
 
         self.inform_server_running()
-
-    def init_florence(self):
-        """Load florence with ML runner as loading it takes time"""
-        self.florence_model = AutoModelForCausalLM.from_pretrained(
-            "microsoft/Florence-2-large",
-            torch_dtype=self.torch_dtype,
-            trust_remote_code=True,
-        ).to(self.device)
-        self.florence_processor = AutoProcessor.from_pretrained(
-            "microsoft/Florence-2-large", trust_remote_code=True
-        )
 
     def inform_server_running(self, closing=False):
         if not closing:
@@ -208,7 +188,7 @@ class MLRunner(object):
                     self.job_config = json.load(f)
         return self.job_config
 
-    def read_model_configs(self):
+    def read_model_config(self):
         with open(MODEL_CONFIG_FP) as f:
             return json.load(f)
 
@@ -345,8 +325,6 @@ class MLRunner(object):
     ):
         florence = self.supported_models["florence"](
             image_arr,
-            self.florence_model,
-            self.florence_processor,
             caption,
             box_threshold,
             text_threshold,
@@ -717,18 +695,21 @@ class MLRunner(object):
                 )
 
             # Get bboxes with GDINO or Florence if we want to
-            if use_gdino:
+            if use_gdino or self.use_florence:
                 box_threshold = 0.35
                 text_threshold = 0.25
+
                 if self.use_florence:
-                    gdino = self.florence_definition(
+                    florence = self.florence_definition(
                         image_arr, id_class, box_threshold, text_threshold, H, W
                     )
-                else:
+                    bbox, pred_phrases = florence.run()
+                elif use_gdino:
                     gdino = self.gdino_definition(
                         image_arr, id_class, box_threshold, text_threshold, H, W
                     )
-                bbox, pred_phrases = gdino.run()
+                    bbox, pred_phrases = gdino.run()
+
                 self.ml_logger.info("BBox fetched!")
             else:
                 # If we're not using a model like gdino/florence we need to ensure that pred phrases is set to a list == to the bbox indices
@@ -896,7 +877,7 @@ class MLRunner(object):
                 render_to, [render_name], uuid, "0%", "0%", True, error_msg=error
             )
             self.ml_logger.error(
-                f"An error was cought processing the config, here is the printout \n{e}"
+                f"An error was caught processing the config, here is the printout \n{e}"
             )
             traceback_error = traceback.format_exc()
             self.ml_logger.error(traceback_error)
@@ -905,7 +886,9 @@ class MLRunner(object):
             del self.model
             del bbox
             del pred_phrases
-            if use_gdino:
+            if self.use_florence:
+                del florence
+            elif use_gdino:
                 del gdino
             torch.cuda.empty_cache()
         except Exception:

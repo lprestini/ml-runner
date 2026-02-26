@@ -11,18 +11,22 @@
 # limitations under the License.
 ######################################################################
 
+from pathlib import Path
 
-# dino_path = '/workspace/lucap/GroundingDINO'
-# sys.path.append(dino_path)
 import torch
+from transformers import AutoProcessor, AutoModelForCausalLM
+
+
+FLORENCE_PATH = (
+    Path(__file__).parent.parent.parent / "third_party_models" / "Florence-2-large"
+)
 
 
 class run_florence(object):
     def __init__(
         self,
+        model_path,
         image,
-        model,
-        prcoessor,
         caption,
         box_threshold,
         text_threshold=None,
@@ -31,15 +35,15 @@ class run_florence(object):
         W=None,
     ):
         self.image = image
-
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
         self.torch_dtype = torch.float16 if torch.cuda.is_available() else torch.float32
         # Check model config and checkpoints exists
         # assert os.path.isfile(model_config_path), 'Model config path does not exists, please check your folder structures!'
         # assert os.path.isfile(model_checkpoint_path), 'Model checkpoint path does not exists, please check your folder structures!'
 
-        self.model = model
-        self.processor = prcoessor
+        self.model_path = model_path
+        self.model = self.load_model()
+        self.processor = self.load_processor()
         self.caption = caption
         self.box_threshold = box_threshold
         self.text_threshold = text_threshold
@@ -54,6 +58,21 @@ class run_florence(object):
         self.boxes_filt = None
         self.pred_phrases = None
         return None
+
+    def load_model(self):
+        return AutoModelForCausalLM.from_pretrained(
+            self.model_path,
+            torch_dtype=self.torch_dtype,
+            trust_remote_code=True,
+            local_files_only=True,
+        ).to(self.device)
+
+    def load_processor(self):
+        return AutoProcessor.from_pretrained(
+            self.model_path,
+            trust_remote_code=True,
+            local_files_only=True,
+        )
 
     def run_example(self, image, task_prompt, text_input=""):
 
