@@ -195,12 +195,9 @@ class MLRunner(object):
             return json.load(f)
 
     def resolve_model_config_path(self, path):
-        if (
-            Path(path).parts[0] != "third_party_models"
-            and Path(path).parts[0] != "ml-runner"
-        ):
+        if Path(path).parts[0] != "third_party_models":
             return path
-        return PROJECT_ROOT / path
+        return str(PROJECT_ROOT / path)
 
     def sam_definition(
         self,

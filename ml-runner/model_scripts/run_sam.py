@@ -12,6 +12,7 @@
 ######################################################################
 
 import os
+
 import numpy as np
 import torch
 import cv2
@@ -53,11 +54,12 @@ class runSAM2(object):
         delimiter=".",
     ):
 
-        self.sam2_checkpoint = sam2_checkpoint_path
-        self.model_cfg = model_cfg_path
+        self.checkpoint_path = sam2_checkpoint_path
+        self.config_path = model_cfg_path
 
+        # Takes relative config path
         self.predictor = build_sam2_video_predictor(
-            self.model_cfg, self.sam2_checkpoint, device=device
+            self.config_path, self.checkpoint_path, device=device
         )
         self.numpy_img_list = numpy_img_list
         self.video_dir = video_dir

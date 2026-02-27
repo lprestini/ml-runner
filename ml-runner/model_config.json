@@ -24,7 +24,7 @@
   },
   "sam": {
     "checkpoint_path": "third_party_models/edited_sam2/checkpoints/sam2.1_hiera_large.pt",
-    "config_path": "ml-runner/configs/sam2.1/sam2.1_hiera_l.yaml"
+    "config_path": "configs/sam2.1/sam2.1_hiera_l.yaml"
   },
   "sam3": {
     "checkpoint_path": "third_party_models/edited_sam3/checkpoints/sam3/sam3.pt"
