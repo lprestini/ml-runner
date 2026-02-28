@@ -72,6 +72,7 @@ Implemented models:
 - [DepthAnything3](https://github.com/ByteDance-Seed/Depth-Anything-3/tree/main)
 - [RGB2X](https://github.com/zheng95z/rgbx/tree/main)
 - [CoTracker3](https://github.com/facebookresearch/co-tracker)
+- [ml-sharp](https://github.com/apple/ml-sharp)
 
 Known issues: 
 - Image loading into Nuke is a bit hacky - it places them quite randomly in the script. 
@@ -79,6 +80,7 @@ Known issues:
 - Supports only EXR and PNG. 
 - Haven't implemented error reporting to Nuke 
 - Progress reporting to node UI is buggy - to see refresh you need to close reopen the node properties
+- ML-Sharp will run on any Nuke version - however it won't import the splats to Nuke unless you are running Nuke17!
 
 The license of this repository only covers the ml-runner related code. All of the code/files in third-party-models come with the original model repository license.
 Please visit the original model repo to refer to the model licenses.  
@@ -239,6 +241,20 @@ git clone https://huggingface.co/facebook/sam3
 
 So far I have only implemented the semantic segmentation functionality as the box mode doesnt support the text and seems to be performing like sam2. 
 Happy to go back to it eventually.
+
+## Installing MLSHARP
+
+To instal ml-sharp run the following commands:
+
+```
+cd third_party_models/mlsharp
+git clone https://github.com/apple/ml-sharp.git
+cd checkpoints/
+wget https://ml-site.cdn-apple.com/models/sharp/sharp_2572gikvuh.pt 
+```
+
+That's it!
+Remember! If you want to use GSPLATS in Nuke make sure you are running Nuke17!
 
 ⚠️ Disclaimer: This server is provided as-is. The maintainers take no responsibility for how it is used. You are solely responsible for compliance with laws and safe operation.
 

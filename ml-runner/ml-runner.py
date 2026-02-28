@@ -48,6 +48,7 @@ sys.path.append(base_path.replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam2/sam2/configs/").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam2/sam2/").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam3/sam3/").replace("\\", "/"))
+sys.path.append(os.path.join(base_path, "mlsharp/ml-sharp/src/").replace("\\","/"))
 sys.path.append(os.path.join(base_path, "edited_dam4sam/dam4sam_2").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_dam4sam/dam4sam_2").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "depth_crafter/").replace("\\", "/"))
@@ -70,6 +71,7 @@ from model_scripts.run_depth_crafter import run_depth_crafter
 from model_scripts.run_rgb2x import run_rgb2x
 from model_scripts.run_cotracker import run_cotracker
 from model_scripts.run_depth_anything3 import run_depth_anything3
+from model_scripts.run_ml_sharp import runMLSharp
 
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -125,6 +127,7 @@ class MLRunner(object):
             "rgb2x": run_rgb2x,
             "cotracker": run_cotracker,
             "depth_anything3": run_depth_anything3,
+            "ml-sharp": runMLSharp,
         }
 
         self.inform_server_running()
@@ -516,6 +519,45 @@ class MLRunner(object):
             self.name_idx,
         )
         return cotracker
+    
+    def ml_sharp_definitition(
+        self,
+        image_arr,
+        focal_lenght, 
+        film_back_size,
+        render_dir,
+        render_name,
+        ann_frame_idx,
+        first_frame_sequence,
+        shot_name,
+        logger,
+        uuid,
+        H=None,
+        W=None,
+        name_idx=0,
+        delimiter=".",
+    ):
+        checkpoint_path = self.resolve_model_config_path(
+            self.model_config["ml-sharp"]["checkpoint_path"]
+        )
+        ml_sharp = self.supported_models["ml-sharp"](
+            checkpoint_path,
+            image_arr,
+            focal_lenght,
+            film_back_size,
+            render_dir,
+            render_name,
+            ann_frame_idx,
+            first_frame_sequence,
+            shot_name,
+            logger,
+            uuid,
+            H=H,
+            W=W,
+            name_idx=name_idx,
+            delimiter=delimiter,
+        )
+        return ml_sharp
 
     def clear_sam_memory(self):
         if not self.is_same_path:
@@ -562,6 +604,8 @@ class MLRunner(object):
         use_grid = config["use_grid"]
         grid_size = config["grid_size"]
         colourspace = config["colourspace"]
+        focal_lenght = config["focal_lenght"]
+        film_back_size = config["film_back_size"]
         is_srgb = colourspace == "srgb"
         uuid = config["uuid"]
         limit_range = (
@@ -873,6 +917,28 @@ class MLRunner(object):
                 )
                 self.model.run()
 
+            elif model_to_run == "ml-sharp":
+                # SAM and DAM manage the limit_range interanlly
+                if limit_range:
+                    first_frame_sequence += limit_range[0]
+                self.model = self.ml_sharp_definitition(
+                    self.loaded_frames,
+                    focal_lenght, 
+                    film_back_size,
+                    render_to,
+                    render_name,
+                    frame_idx,
+                    first_frame_sequence,
+                    shot_name,
+                    self.ml_logger,
+                    uuid,
+                    H,
+                    W,
+                    self.name_idx,
+                    delimiter,
+                )
+                self.model.run()
+
             self.ml_logger.info(f"shot {shot_name} saved at {render_to}")
 
         except (IndexError, ValueError, TypeError, KeyError, Exception) as e:
@@ -952,9 +1018,11 @@ class MLRunnerHandler(FileSystemEventHandler):
     def runner_loop(self):
         """Fetch item from queue and run it - then write to cache"""
         while True:
+            qsize = self.queue.qsize()
+            qsize = qsize if qsize > 0 else 1
             current = self.queue.get()
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            job_id_idx = len(self.job_id) - 1
+            job_id_idx = len(self.job_id) - qsize
             self.status[job_id_idx] = "In progress"
             self.processing_timestamp[job_id_idx] = timestamp
             self.write_queue()

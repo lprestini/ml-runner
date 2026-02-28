@@ -28,5 +28,8 @@
   },
   "sam3": {
     "checkpoint_path": "third_party_models/edited_sam3/checkpoints/sam3/sam3.pt"
+  },
+  "ml-sharp": {
+    "checkpoint_path": "third_party_models/mlsharp/checkpoints/sharp_2572gikvuh.pt"
   }
 }

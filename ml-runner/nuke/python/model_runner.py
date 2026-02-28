@@ -29,6 +29,7 @@ else:
     from PySide2 import QtWidgets
     from PySide2.QtCore import QObject, QEvent
 
+IS_17 = nuke.NUKE_VERSION_MAJOR >= 17
 
 def cancel_task():
     config_save_directory = node["render_to"].value()
@@ -142,11 +143,12 @@ class CustomTimer(threading.Thread):
 
 
 class Loader(object):
-    def __init__(self, node, path, print_to_terminal=True, is_tracker=False):
+    def __init__(self, node, path, print_to_terminal=True, is_tracker=False, is_gs = True):
         self.node = node
         self.path = path
         self.print_to_terminal = print_to_terminal
         self.is_tracker = is_tracker
+        self.is_gs = is_gs
         self.timer = CustomTimer(
             10,
             self.load_bg_render,
@@ -196,6 +198,37 @@ class Loader(object):
             )
             nuke.tcl("in root {%s}" % template_node)
             time.sleep(0.2)
+
+    def setup_geo_import(self, file_path, node):
+        """Function to create the read node. Have to use this as a workaround as I cant simply do nuke.nodes.Read() with threading.Timer as it crashes nuke"""
+
+        reads = [i for i in nuke.allNodes("GeoImport")]
+        read_no = (
+            max(
+                [
+                    int(i["name"].value().replace("GeoImport", ""))
+                    for i in reads
+                    if "MLRunner" not in i.name()
+                ]
+            )
+            + 1
+        )
+        template_node = """GeoImport {
+            name template_name
+            file template_file
+            xpos template_xpos
+            ypos template_ypos
+            }"""
+        xpos = node.xpos() + 150
+        ypos = node.ypos()
+        template_node = (
+            template_node.replace("template_file", file_path)
+            .replace("template_name", "GeoImport" + str(read_no))
+            .replace("template_xpos", str(xpos))
+            .replace("template_ypos", str(ypos))
+        )
+        nuke.tcl("in root {%s}" % template_node)
+        time.sleep(0.2)
 
     def load_bg_render(self, node, path, print_to_terminal, is_tracker):
         if not self.timer_completed:
@@ -247,7 +280,7 @@ class Loader(object):
                 count = 0
                 while count <= max_count:
                     if self.user_monitor.is_user_idle():
-                        if not self.is_tracker:
+                        if not self.is_tracker and not self.is_gs:
                             if self.user_monitor.is_user_idle():
                                 for _file in filename:
                                     shot = [
@@ -264,6 +297,17 @@ class Loader(object):
                                             ).replace("\\", "/"),
                                             self.node,
                                         )
+                                count = 40
+                        elif self.is_gs:
+                            if self.user_monitor.is_user_idle():
+                                for _file in filename:
+                                    splat_path = os.path.join(os.path.join(os.path.dirname(self.path), _file)).replace("\\", "/")
+                                    if IS_17:
+                                        self.setup_geo_import(splat_path,
+                                            self.node,
+                                        )
+                                    else:
+                                        print(f'I cant load the splats in any version less than Nuke17, rendered splats at:\n{splat_path}')
                                 count = 40
                         else:
                             if self.user_monitor.is_user_idle():
@@ -332,8 +376,10 @@ path_to_sequence_exists = os.path.isdir(node["path_to_sequence"].value())
 is_node_connected = len(node.dependencies()) > 0
 is_segmentation = node["model_to_run"].value() in ("sam", "dam", "sam3")
 is_tracking = node["model_to_run"].value() == "cotracker"
+is_gs = node["model_to_run"].value() == "ml-sharp"
 use_sam3 = node["use_sam3"].value() if node["model_to_run"].value() == "sam3" else False
 FG_render = node["fg_render"].value()
+is_single_frame_mode = node["single_frame_mode"].value() and is_gs
 
 
 if is_segmentation or is_tracking:
@@ -430,6 +476,9 @@ if all_good:
     config["delimiter"] = delimiter
     config["use_grid"] = node["use_grid"].value()
     config["grid_size"] = node["grid_size"].value()
+    config["focal_lenght"] = node["focal_lenght"].value()
+    config["film_back_size"] = node["film_back_size"].value()
+    config["single_frame_mode"] = is_single_frame_mode
     config["colourspace"] = (
         "linear" if node["model_to_run"].value() == "rgb2x" else "srgb"
     )
@@ -444,6 +493,15 @@ if all_good:
     # We remove one frame as we are using these to simply slice lists
     config["limit_first"] = int(node["limit_first"].value() - node.firstFrame())
     config["limit_last"] = int(node["limit_last"].value() - node.firstFrame()) + 1
+
+    # In single frame mode we always only use one frame - this is an easy hack
+    if is_single_frame_mode:
+        config["limit_first"] = int(frame_idx - node.firstFrame())
+        config["limit_last"] = int(frame_idx - node.firstFrame()) + 1
+        config['limit_range'] = True
+    else:
+        # If not single mode - we dont use annotation indx so it should be the first frame
+        config['frame_idx'] = int(node.firstFrame())
 
     # Write related stuff
     write_sequence = node["write_sequence"].value()
@@ -499,7 +557,7 @@ if all_good:
             nuke.thisNode().end()
             filename = run_progress_bar(render_progress_file, config["model_to_run"])
             if filename:
-                if not is_tracking:
+                if not is_tracking and not is_gs:
                     for read_idx, _file in enumerate(filename):
                         shot = [
                             i
@@ -518,6 +576,17 @@ if all_good:
                             read.setXYpos(
                                 node.xpos() + (100 * (read_idx + 1)), node.ypos()
                             )
+                elif is_gs:
+                    if IS_17:
+                        for gs_idx, _file in enumerate(filename):
+                            geo_import = nuke.nodes.GeoImport()
+                            geo_import["file"].setValue(os.path.join(os.path.dirname(render_progress_file), _file).replace("\\", "/"))
+                            geo_import.setXYpos(
+                                node.xpos() + (100 * (gs_idx + 1)), node.ypos()
+                            )
+                    else:
+                        path_to_splat = os.path.dirname(render_progress_file)
+                        nuke.message(f'Your GS are ready! I cant import them in nuke as this isnt Nuke17! They are rendered at:\n{path_to_splat}')
                 else:
                     for tracker_idx, _file in enumerate(filename):
                         tracker = nuke.loadToolset(
@@ -530,7 +599,7 @@ if all_good:
             remove_from_queue(node, render_progress_file)
 
         else:
-            node_loader = Loader(node, render_progress_file, is_tracker=is_tracking)
+            node_loader = Loader(node, render_progress_file, is_tracker=is_tracking, is_gs=is_gs)
 else:
     error_message = "\n".join(error_messages[error_keys[i]] for i in errors)
     nuke.alert(
