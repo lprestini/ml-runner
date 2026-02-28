@@ -160,17 +160,14 @@ class runMLSharp(object):
                 # Compute progress tracking forward
                 out_frame_idx = out_frame_idx + self.first_frame_sequence if not self.is_limit else out_frame_idx + self.limit_range[0] + self.first_frame_sequence
                 filename = f"{self.render_name}_{self.name_idx}"
-                name = f"{filename}_{str(out_frame_idx)}.ply"
-                save_ply(gaussians, f_px, (height, width), os.path.join(self.render_dir, name))
-
+                filename = f"{filename}_{str(out_frame_idx)}.ply"
+                save_ply(gaussians, f_px, (height, width), os.path.join(self.render_dir, filename))
+                filenames.append(filename)
+                filenames = list(set(filenames))
                 if out_frame_idx % 10 == 0:
-                    filenames.append(filename)
-                    filenames = list(set(filenames))
                     track_progress = calc_progress(1, 0, (out_frame_idx - self.ann_frame_idx) + 1, B - self.ann_frame_idx)
                     write_stats_file(self.render_dir, filenames, self.uuid, track_progress, "100%", False)
 
             if not check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
-                if len(filenames) == 0:
-                    filenames.append(filename)
                 write_stats_file(self.render_dir, filenames, self.uuid, "100%", "100%", False)
                 self.logger.info("All done!")
