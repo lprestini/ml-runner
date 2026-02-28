@@ -11,35 +11,49 @@
 # limitations under the License.
 ######################################################################
 
-import sys
+
 # dino_path = '/workspace/lucap/GroundingDINO'
 # sys.path.append(dino_path)
 import os
 import numpy as np
 import torch
-import matplotlib.pyplot as plt
 from PIL import Image
-import cv2
-import sys
-from PIL import Image
-import groundingdino.datasets.transforms as T
-from groundingdino.models import build_model
-from groundingdino.util import box_ops
-from groundingdino.util.slconfig import SLConfig
-from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
-from groundingdino.util.vl_utils import create_positive_map_from_span
-import os
+import warnings
+
+try:
+    import groundingdino.datasets.transforms as T
+    from groundingdino.models import build_model
+    from groundingdino.util.slconfig import SLConfig
+    from groundingdino.util.utils import clean_state_dict, get_phrases_from_posmap
+    from groundingdino.util.vl_utils import create_positive_map_from_span
+except ImportError:
+    warnings.warn("Unable to import optional model gdino")
 
 
 class run_gdino(object):
-    def __init__(self,image, model_config_path, model_checkpoint_path, caption, box_threshold, text_threshold = None, with_logits = True, H = None, W = None):
+    def __init__(
+        self,
+        image,
+        model_config_path,
+        model_checkpoint_path,
+        caption,
+        box_threshold,
+        text_threshold=None,
+        with_logits=True,
+        H=None,
+        W=None,
+    ):
         self.image = image
         self.model_config_path = model_config_path
         self.model_checkpoint_path = model_checkpoint_path
 
         # Check model config and checkpoints exists
-        assert os.path.isfile(model_config_path), 'Model config path does not exists, please check your folder structures!'
-        assert os.path.isfile(model_checkpoint_path), 'Model checkpoint path does not exists, please check your folder structures!'
+        assert os.path.isfile(model_config_path), (
+            "Model config path does not exists, please check your folder structures!"
+        )
+        assert os.path.isfile(model_checkpoint_path), (
+            "Model checkpoint path does not exists, please check your folder structures!"
+        )
 
         self.model = self.load_model()
         self.caption = caption
@@ -79,13 +93,14 @@ class run_gdino(object):
         args.device = "cuda" if not cpu_only else "cpu"
         model = build_model(args)
         checkpoint = torch.load(self.model_checkpoint_path, map_location="cpu")
-        load_res = model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
+        model.load_state_dict(clean_state_dict(checkpoint["model"]), strict=False)
         _ = model.eval()
         return model
 
-
     def get_grounding_output(self, cpu_only=False, token_spans=None):
-        assert self.text_threshold is not None or token_spans is not None, "text_threshould and token_spans should not be None at the same time!"
+        assert self.text_threshold is not None or token_spans is not None, (
+            "text_threshould and token_spans should not be None at the same time!"
+        )
         caption = self.caption.lower()
         caption = caption.strip()
         if not caption.endswith("."):
@@ -93,7 +108,6 @@ class run_gdino(object):
         device = "cuda" if not cpu_only else "cpu"
         model = self.model.to(device)
         image = self.transformed_image.to(device)
-        shape_size = image.shape
 
         with torch.no_grad():
             outputs = model(image[None], captions=[caption])
@@ -114,25 +128,28 @@ class run_gdino(object):
             # build pred
             pred_phrases = []
             for logit, box in zip(logits_filt, boxes_filt):
-                pred_phrase = get_phrases_from_posmap(logit > self.text_threshold, tokenized, tokenlizer)
+                pred_phrase = get_phrases_from_posmap(
+                    logit > self.text_threshold, tokenized, tokenlizer
+                )
                 if self.with_logits:
-                    pred_phrases.append(pred_phrase + f"({str(logit.max().item())[:4]})")
+                    pred_phrases.append(
+                        pred_phrase + f"({str(logit.max().item())[:4]})"
+                    )
                 else:
                     pred_phrases.append(pred_phrase)
         else:
             # given-phrase mode
             positive_maps = create_positive_map_from_span(
-                model.tokenizer(caption),
-                token_span=token_spans
-            ).to(image.device) # n_phrase, 256
+                model.tokenizer(caption), token_span=token_spans
+            ).to(image.device)  # n_phrase, 256
 
-            logits_for_phrases = positive_maps @ logits.T # n_phrase, nq
+            logits_for_phrases = positive_maps @ logits.T  # n_phrase, nq
             all_logits = []
             all_phrases = []
             all_boxes = []
-            for (token_span, logit_phr) in zip(token_spans, logits_for_phrases):
+            for token_span, logit_phr in zip(token_spans, logits_for_phrases):
                 # get phrase
-                phrase = ' '.join([caption[_s:_e] for (_s, _e) in token_span])
+                phrase = " ".join([caption[_s:_e] for (_s, _e) in token_span])
                 # get mask
                 filt_mask = logit_phr > self.box_threshold
                 # filt box
@@ -141,7 +158,12 @@ class run_gdino(object):
                 all_logits.append(logit_phr[filt_mask])
                 if self.with_logits:
                     logit_phr_num = logit_phr[filt_mask]
-                    all_phrases.extend([phrase + f"({str(logit.item())[:4]})" for logit in logit_phr_num])
+                    all_phrases.extend(
+                        [
+                            phrase + f"({str(logit.item())[:4]})"
+                            for logit in logit_phr_num
+                        ]
+                    )
                 else:
                     all_phrases.extend([phrase for _ in range(len(filt_mask))])
             self.boxes_filt = torch.cat(all_boxes, dim=0).cpu()
@@ -150,7 +172,7 @@ class run_gdino(object):
         return boxes_filt, pred_phrases
 
     def flip(self, boxes, labels):
-        
+
         for box, label in zip(boxes, labels):
             # from xywh to xyxy
             box[:2] -= box[2:] / 2
@@ -158,8 +180,8 @@ class run_gdino(object):
             x0, y0, x1, y1 = box
             x0, y0, x1, y1 = int(x0), int(y0), int(x1), int(y1)
         return box
-    
-    def get_bbox(self, boxes, _W,_H):
+
+    def get_bbox(self, boxes, _W, _H):
         processed_box = []
         for box in boxes:
             # from 0..1 to 0..W, 0..H
@@ -170,16 +192,17 @@ class run_gdino(object):
             processed_box.append(box.cpu().numpy())
         return processed_box
 
-
-    def run(self,):
+    def run(
+        self,
+    ):
         self.transformed_image = self.load_image()
 
-        H,W = (self.H, self.W)
-        if self.H == None or self.W == None:
-            H,W,C = self.image.shape
+        H, W = (self.H, self.W)
+        if self.H is None or self.W is None:
+            H, W, C = self.image.shape
 
         # run model
         self.boxes_filt, self.pred_phrases = self.get_grounding_output(False, None)
-        self.boxes_filt = self.get_bbox(self.boxes_filt, W,H)
+        self.boxes_filt = self.get_bbox(self.boxes_filt, W, H)
 
         return self.boxes_filt, self.pred_phrases

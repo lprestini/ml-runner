@@ -1,0 +1,18 @@
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "lint"
+name = "Lint"
+language = "system"
+entry = "uv run ruff check --fix --exclude third_party_models"
+always_run = true
+types = ["python"]
+
+[[repos.hooks]]
+id = "format"
+name = "Format"
+language = "system"
+entry = "uv run ruff format --exclude third_party_models"
+always_run = true
+types = ["python"]

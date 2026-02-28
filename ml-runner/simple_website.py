@@ -13,14 +13,13 @@
 
 from __future__ import annotations
 
-from flask import Flask, jsonify, send_from_directory, request, abort 
+from flask import Flask, jsonify, send_from_directory, request, abort
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 import socket
 import logging
 import ipaddress
-import os
 
 
 class MLRunnerServer:
@@ -40,23 +39,31 @@ class MLRunnerServer:
         server.start_threaded(host="0.0.0.0", port=8000)
     """
 
-    def __init__(self, data_path: str | Path, web_dir: str | Path = './', host: str = "0.0.0.0", port: int = 8000, ip_allow_list = [], use_ip_allow_list = False):
+    def __init__(
+        self,
+        data_path: str | Path,
+        web_dir: str | Path = "./",
+        host: str = "0.0.0.0",
+        port: int = 8000,
+        ip_allow_list=[],
+        use_ip_allow_list=False,
+    ):
         """
-           Args:
-           data_path: Path to where the data json is 
-           web_dir: Path to the index.thml file 
-           host: interface to listen to - 0.0.0.0 means any machine that can ping your computer can access this - if they are on the network and your firewall allows it. *NOTE* 
-           Be aware that opening a port through a firewall on a network that is not set up correctly may be dangerous without allow list or other restrictions in place
-           port: what port to use to access the server 
-           ip_allow_list: This should be a list of strings representing the subnetworks you want to restrict access to. If this is not enalbed and the network you run this server on is public - it can be dangerous.
-           e.g ["100.123.122.0/24","100.124.124.0/24"]
-           use_ip_allow_list: Wether to use the IP allow list
+        Args:
+        data_path: Path to where the data json is
+        web_dir: Path to the index.thml file
+        host: interface to listen to - 0.0.0.0 means any machine that can ping your computer can access this - if they are on the network and your firewall allows it. *NOTE*
+        Be aware that opening a port through a firewall on a network that is not set up correctly may be dangerous without allow list or other restrictions in place
+        port: what port to use to access the server
+        ip_allow_list: This should be a list of strings representing the subnetworks you want to restrict access to. If this is not enalbed and the network you run this server on is public - it can be dangerous.
+        e.g ["100.123.122.0/24","100.124.124.0/24"]
+        use_ip_allow_list: Wether to use the IP allow list
         """
         self.data_path = Path(data_path)
         self.web_dir = Path(web_dir).resolve()
         self.url_prefix = "".rstrip("/")  # allow "" or "/dash"
 
-        self.app = Flask('MLRunner dashboard')
+        self.app = Flask("MLRunner dashboard")
         self.app.config["JSON_SORT_KEYS"] = False
         self.app.logger.setLevel(logging.INFO)
         try:
@@ -75,8 +82,9 @@ class MLRunnerServer:
         if not any(ip in net for net in self.allowed_nets):
             abort(403)
 
-
-    def get_machine_ip(self,):
+    def get_machine_ip(
+        self,
+    ):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             # No traffic is actually sent
@@ -87,18 +95,20 @@ class MLRunnerServer:
 
     def log_web_address_once(self):
         _ip = self.get_machine_ip()
-        address = f'http://{_ip}:{self.port}'
-        self.app.logger.info(f'MLRunner Dashboard is running at: {address}')
+        address = f"http://{_ip}:{self.port}"
+        self.app.logger.info(f"MLRunner Dashboard is running at: {address}")
 
     def inform_about_server(self):
-        self.app.logger.warning('\n\nHELLO! PLEASE READ THE FOLLOWING:\n\n'\
-        'If you are running the server on a network and you need other people to access the dashboard to see whats going on, make sure that the network is set up correctly!\n' \
-        'Opening a port through a firewall on the wrong network may expose the server to the public. Causing a potential VULNERABILITY. If you are not sure what you are doing you can:\n' \
-        '    - Speak with your system adminstrator or IT to ask which port is free and not set to public on the network.\n' \
-        '    - Do not open a port on your firewall\n'\
-        '    - Set up the IP allowlist to allow only certain subnets to access this service\n'\
-        '    - Disable the web server funcionality by rerunning the app with --no-web_server False\n' \
-        'Thank you for reading!\n\n')
+        self.app.logger.warning(
+            "\n\nHELLO! PLEASE READ THE FOLLOWING:\n\n"
+            "If you are running the server on a network and you need other people to access the dashboard to see whats going on, make sure that the network is set up correctly!\n"
+            "Opening a port through a firewall on the wrong network may expose the server to the public. Causing a potential VULNERABILITY. If you are not sure what you are doing you can:\n"
+            "    - Speak with your system adminstrator or IT to ask which port is free and not set to public on the network.\n"
+            "    - Do not open a port on your firewall\n"
+            "    - Set up the IP allowlist to allow only certain subnets to access this service\n"
+            "    - Disable the web server funcionality by rerunning the app with --no-web_server False\n"
+            "Thank you for reading!\n\n"
+        )
 
     def _read_json_file(self) -> Dict[str, Any]:
         if not self.data_path.exists():
@@ -115,15 +125,19 @@ class MLRunnerServer:
                 model2run = data.get("model2run", [])
                 n = max(len(ids), len(sts))
                 n = n if n != 0 else 1
-                data = [ {"ID": ids[i] if i < len(ids) else "", 
+                data = [
+                    {
+                        "ID": ids[i] if i < len(ids) else "",
                         "Model name": model2run[i] if i < len(model2run) else "",
                         "Status": sts[i] if i < len(sts) else "",
                         "Submission Time": timestamp[i] if i < len(sts) else "",
                         "Start Time": start_time[i] if i < len(sts) else "",
                         "Error log": error_log[i] if i < len(sts) else "",
-                        } for i in range(n) ]
+                    }
+                    for i in range(n)
+                ]
                 return data
-                
+
         except json.JSONDecodeError as e:
             return {"error": "Invalid JSON", "details": str(e)}
         except Exception as e:
@@ -148,12 +162,15 @@ class MLRunnerServer:
     def run(self, host: str = "0.0.0.0", port: int = 8000, debug: bool = False) -> None:
         self.app.run(host=host, port=port, debug=debug)
 
-    def start_threaded(self, host: str = "0.0.0.0", port: int = 8000, debug: bool = False):
+    def start_threaded(
+        self, host: str = "0.0.0.0", port: int = 8000, debug: bool = False
+    ):
         """
         Start Flask in a background thread (useful if you have a main loop).
         Note: Flask dev server isn't for production, but fine for LAN dashboards.
         """
         import threading
+
         self.host = host
         self.port = port
         self.inform_about_server()

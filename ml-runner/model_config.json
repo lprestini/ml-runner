@@ -1,0 +1,32 @@
+{
+  "cotracker": {
+    "checkpoint_path": "third_party_models/co-tracker/cotracker3/scaled_online.pth"
+  },
+  "dam": {
+    "checkpoint_path": "third_party_models/edited_sam2/checkpoints/sam2.1_hiera_large.pt"
+  },
+  "depth_anything3": {
+    "pretrain_path": "third_party_models/depth_anything3/DA3-GIANT/"
+  },
+  "depth_crafter": {
+    "pretrain_path": "third_party_models/depth_crafter/checkpoints/stable-video-diffusion-img2vid-xt/",
+    "unet_path": "third_party_models/depth_crafter/checkpoints/DepthCrafter/"
+  },
+  "florence": {
+    "model_path": "third_party_models/Florence-2-large"
+  },
+  "gdino": {
+    "checkpoint_path": "weights/groundingdino_swint_ogc.pth",
+    "config_path": "groundingdino/config/GroundingDINO_SwinT_OGC.py"
+  },
+  "rgb2x": {
+    "pretrain_path": "third_party_models/rgb2x/checkpoints/rgb-to-x/"
+  },
+  "sam": {
+    "checkpoint_path": "third_party_models/edited_sam2/checkpoints/sam2.1_hiera_large.pt",
+    "config_path": "configs/sam2.1/sam2.1_hiera_l.yaml"
+  },
+  "sam3": {
+    "checkpoint_path": "third_party_models/edited_sam3/checkpoints/sam3/sam3.pt"
+  }
+}
