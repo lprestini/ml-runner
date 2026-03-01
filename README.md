@@ -13,7 +13,7 @@ It saves me a lot of time to use this - but there is no exepectations at all for
 After having followed the install instructions to install the server simply run the following code from inside the created virtual environment
 
 ```
-python ml-runner.py --listen_dir /path/to/listen_dir
+ml-runner --listen_dir /path/to/listen_dir
 ```
 
 And the server will be listening on the given directory. Once the server is started, it'll keep going waiting until told otherwise. 
@@ -23,7 +23,7 @@ Once the server is running, you can send the configs to the listening directory 
 Obviously, the machine that is running the server **MUST** have access to the directories where the images you want to process/ render are - otherwise it will fail. 
 
 The config files right now are created from Nuke - however it can be implemented in any app, as long as they allow you to use python. 
-Nuke gizmo is contained inside this repo under nuke/ToolSets/ML/ModelRunner.nk
+Nuke gizmo is contained inside this repo under nuke_plugin/ToolSets/ML/ModelRunner.nk
 
 To see how the nuke node works, simply click the below image or the [link to video](https://vimeo.com/1116518771)
 [![ModelRunner for Nuke Tutorial](https://raw.githubusercontent.com/lprestini/ml-runner/refs/heads/main/assets/icon.png)](https://vimeo.com/1116518771)
@@ -33,25 +33,23 @@ The web serve is a simple python app that display a json file on html. To allow 
 Opening a port on a public network can expose your computer to vulnerabilities so be safe. 
 In most VFX facilities this is fine as the network is already very safe so opening a port would be only visible by people on your network. But again - be safe and speak wiht IT/SysAdmin if you aren't sure what you are doing. 
 
-
-
 To disbale the web server simply run: 
 ```
-python ml-runner.py --listen_dir /path/to/listen_dir --no-web_server
+ml-runner --listen_dir /path/to/listen_dir --no-web_server
 ```
 
 To limit the networks that can access the server run 
 
 ```
-python ml-runner.py --listen_dir /path/to/listen_dir --ip_allow_list
+ml-runner --listen_dir /path/to/listen_dir --ip_allow_list
 ```
 
-If --ip_allow_list is enabled - you will need to set the subnets that are allowed inside the ml-runner.py file. 
+If --ip_allow_list is enabled - you will need to set the subnets that are allowed inside the ml_runner.py file.
 
 By default the server runs on port 8001 - you can override it by doing 
 
 ```
-python ml-runner.py --listen_dir /path/to/listen_dir --port 8001
+ml-runner --listen_dir /path/to/listen_dir --port 8001
 ```
 
 ## Current features and implemented models
@@ -85,14 +83,61 @@ Known issues:
 The license of this repository only covers the ml-runner related code. All of the code/files in third-party-models come with the original model repository license.
 Please visit the original model repo to refer to the model licenses.  
 
-## How to install the server 
+## Installing the Server
+
+### Prerequisites
+
 The server code has been tested with Linux Rocky 9 Python 3.10 PyTorch2.7 and CUDA12.8. However it should work with other CUDA versions and some other pytorch versions, depending on how far you go. 
-The repo assumes that you have an NVIDIA GPU and that is good enough to run some models, that python3.10 is already installed, and that virtualenv is already installed. 
+The repo assumes that you have an NVIDIA GPU and that is good enough to run some models.
 
-Start by cloning the repository and creating a virtual environment
+This project is packaged with uv which simplifies the install, however a manual install method is also provided using python and pip.
 
+To install uv on Linux:
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+See [uv install](https://docs.astral.sh/uv/getting-started/installation/) for installing on other operating systems.
+
+> [!NOTE]
+> Installation with uv is considerably faster than installing with pip
+
+For the manual install method it is required that python3.10, pip, and virtualenv are installed.
+
+### Recommended Install
+
+Before installing the server the project must be cloned locally:
 ```
 git clone https://github.com/lprestini/ml-runner.git
+cd ml-runner
+```
+
+To install the project:
+```
+uv sync
+```
+
+To run the ml-runner script you may enter the virtual environment created by uv, or prefix the commands with uv run:
+```
+# with venv
+source .venv/bin/activate
+ml-runner --help
+
+# with uv run
+uv run ml-runner --help
+```
+
+### Enabling the Nuke Plugin
+
+This project contains a nuke plugin which should be enabled in your init.py. To enable add the following line to your init.py file: 
+```
+# ~/.nuke/init.py (Linux)
+nuke.pluginAddPath('/path/to/ml-runner/nuke_plugin/')
+```
+
+### Manual Install
+
+Start by cloning the repository as described above, and creating a virtual environment:
+```
 python3 -m virtualenv mlrunner_venv
 . mlrunner_venv/bin/activate
 ```
@@ -103,23 +148,33 @@ Once the virtualenv enviornment is created and activated, we install pytorch & t
 pip install torch==2.7.1 torchvision==0.22.1 torchaudio==2.7.1 --index-url https://download.pytorch.org/whl/cu128
 ```
 
-Now that torch is installed, lets installed the various python modules and download the checkpoints for SAM
+Now that torch is installed, lets install the various python modules along with the package, and download the checkpoints for SAM
 ```
 pip install -r requirements.txt
+pip install --no-deps -e .
+```
+
+## Model Installs
+
+This section describes methods for downloading thirdparty models.
+
+Most of the other models can be easily downloaded from huggingface without any external dependencies. It is recommended to install these packages uv which provides the uvx command to easily download via the huggingface cli.
+
+Alternatively, additional install methods with git are provided. For these methods git-lfs is required to enable downloading checkpoints and other large files.
+
+Model install commands should be run from the project root unless described otherwise.
+
+### Installing SAM2 and DAM4SAM
+
+The following commands will ensure that SAM2 and DAM4SAM are installed correctly:
+```
 cd third_party_models/edited_sam2/checkpoints/
 ./download_ckpts.sh
 cd ../../../
 ```
 
-The above will ensure that SAM2 and DAM4SAM are installed correctly.
-
-Then add the following to your init.py 
-
-`nuke.pluginAddPath('/path/to/ml-runner/ml-runner/nuke/')`
-
-## Model Installs
-
 ### Installing GroundingDINO (This is not required for the basic functionality. It's only used if you want to use semantic detection)
+
 To install GroundindDINO, follow the instructions on their page here: https://github.com/IDEA-Research/GroundingDINO
 Or try follow these. 
 If you follow the one on their repository **MAKE SURE TO REMOVE TORCH & TORCHVISION** from their pip requirements.
@@ -161,29 +216,31 @@ If you have weird errors when doing `pip install -e .` try doing `pip install .`
 
 
 ### Installing Florence2
-This is a replacement repository for GDINO - 
 
-Make sure git lfs is installed 
+This is a replacement repository for GDINO semantic detection.
 
-then do 
-
-```
-git lfs install
-git clone https://huggingface.co/microsoft/Florence-2-large
-```
-
-Alternative install with uv:
 ```
 uvx hf download --local-dir ./third_party_models/Florence-2-large microsoft/Florence-2-large
+```
+
+Alternative install with git:
+```
+cd third_party_models
+git lfs install
+git clone https://huggingface.co/microsoft/Florence-2-large
 ```
 
 **REMEMBER TO USE THIS YOU NEED TO ENABLE IT IN THE SERVER CODE**
 
 ### Installing DepthCrafter
 
-To install DepthCrafter please run the following comands. 
-Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
+To install DepthCrafter please run the following commands:
+```
+uvx hf download --local-dir ./third_party_models/depth_crafter/checkpoints/DepthCrafter tencent/DepthCrafter
+uvx hf download --local-dir ./third_party_models/depth_crafter/checkpoints/stable-video-diffusion-img2vid-xt stabilityai/stable-video-diffusion-img2vid-xt
+```
 
+Alternative install with git:
 ```
 cd third_party_models/depth_crafter
 mkdir checkpoints
@@ -193,17 +250,14 @@ git clone https://huggingface.co/tencent/DepthCrafter
 git clone https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt
 ```
 
-Alternative install with uv:
-```
-uvx hf download --local-dir ./third_party_models/depth_crafter/checkpoints/DepthCrafter tencent/DepthCrafter
-uvx hf download --local-dir ./third_party_models/depth_crafter/checkpoints/stable-video-diffusion-img2vid-xt stabilityai/stable-video-diffusion-img2vid-xt
-```
-
 ### Installing RGB2X
 
-To install RGB2X please run the following commands 
-Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
+To install RGB2X please run the following command:
+```
+uvx hf download --local-dir ./third_party_models/rgb2x/checkpoints/rgb-to-x zheng95z/rgb-to-x
+```
 
+Alternative install with git:
 ```
 cd third_party_models/rgb2x/
 mkdir checkpoints
@@ -212,16 +266,15 @@ git lfs install
 git clone https://huggingface.co/zheng95z/rgb-to-x
 ```
 
-Alternative install with uv:
-```
-uvx hf download --local-dir ./third_party_models/rgb2x/checkpoints/rgb-to-x zheng95z/rgb-to-x
-```
-
 ### Installing Co-tracker3
 
-To install Co-tracker3 please run the following commands 
-Please make sure git lfs is installed - otherwise you'll be downloading empty checkpoints. 
+To install Co-tracker3 please run the following commands:
+```
+git clone https://github.com/facebookresearch/co-tracker.git ./third_party_models/co-tracker
+uvx hf download --local-dir ./third_party_models/co-tracker/cotracker3 facebook/cotracker3 scaled_online.pth
+```
 
+Alternative install with git:
 ```
 cd third_party_models/
 git clone https://github.com/facebookresearch/co-tracker.git
@@ -231,25 +284,19 @@ cd cotracker3
 wget https://huggingface.co/facebook/cotracker3/resolve/main/scaled_online.pth
 ```
 
-Alternative install with uv:
-```
-git clone https://github.com/facebookresearch/co-tracker.git ./third_party_models/co-tracker
-uvx hf download --local-dir ./third_party_models/co-tracker/cotracker3 facebook/cotracker3 scaled_online.pth
-```
-
 ### Installing DepthAnything3
 
-To install DepthAnything3 you simply need to download the weights and move thme at the base of the depth-anything3 folder in third-party-models
+To install DepthAnything3 you simply need to download the weights and move them at the base of the depth-anything3 folder in third-party-models.
 
+```
+uvx hf download --local-dir ./third_party_models/depth_anything3/DA3-GIANT depth-anything/DA3-GIANT
+```
+
+Alternative install with git:
 ```
 cd third_party_models/depth_anything3/
 git lfs install 
 git clone https://huggingface.co/depth-anything/DA3-GIANT
-```
-
-Alternative install with uv:
-```
-uvx hf download --local-dir ./third_party_models/depth_anything3/DA3-GIANT depth-anything/DA3-GIANT
 ```
 
 Important note, if you want to use other checkpoints other than the DA3-GIANT - you'll need to download the weights and edit the path in `ml_runner/ml_runner/model_config.json` to reflect what model you want to use.
@@ -257,22 +304,22 @@ Important note, if you want to use other checkpoints other than the DA3-GIANT - 
 ### Installing SAM3
 
 To install SAM3 you need to download the checkpoint from hugging face. However to do so, you'll need to submit a form to get approval for downloading the checkpoints. 
-Go to [huggingface website](https://huggingface.co/facebook/sam3) and fill out the form. Once approved run the following 
+Go to [huggingface website](https://huggingface.co/facebook/sam3) and fill out the form. Once approved run the following replacing with your access token where applicable
 
-```
-cd third_party_models/edited_sam3
-mkdir checkpoints && cd checkpoints
-git lfs install 
-git clone https://huggingface.co/facebook/sam3
-```
-
-Alternative install with uv:
 ```
 uvx hf download --local-dir ./third_party_models/edited_sam3/checkpoints/sam3 --token <token generated at https://huggingface.co/settings/tokens> facebook/sam3
 ```
 
 > [!NOTE]
 > The following Access Token Permissions must be enabled: _Read access to contents of all public gated repos you can access_
+
+Alternative install with git:
+```
+cd third_party_models/edited_sam3
+mkdir checkpoints && cd checkpoints
+git lfs install 
+git clone https://huggingface.co/facebook/sam3
+```
 
 So far I have only implemented the semantic segmentation functionality as the box mode doesnt support the text and seems to be performing like sam2. 
 Happy to go back to it eventually.
@@ -312,10 +359,7 @@ To install GNU Make (Rocky 9):
 dnf install make
 ```
 
-To [install uv](https://docs.astral.sh/uv/getting-started/installation/#standalone-installer) (Rocky 9):
-```
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+To install uv, see [Installing the Server](#Installing-the-Server).
 
 To run the dev setup inc. installing prek precommit hooks:
 ```
