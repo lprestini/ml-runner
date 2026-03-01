@@ -161,6 +161,9 @@ dependencies = [
     "yapf==0.43.0",
 ]
 
+[project.scripts]
+ml-runner = "ml_runner.ml_runner:cli_entrypoint"
+
 [dependency-groups]
 dev = [
     "prek>=0.3.3",
