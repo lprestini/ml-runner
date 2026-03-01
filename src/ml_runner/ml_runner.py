@@ -24,23 +24,23 @@ import logging
 import sys
 import torch
 import traceback
-import argparse
 import threading
-from simple_website import MLRunnerServer
 from datetime import datetime
 import queue
 
-from mlrunner_utils.imgutils import (
+from ml_runner.simple_website import MLRunnerServer
+from ml_runner.utils.imgutils import (
     get_im_width_height,
     load_imgs_to_numpy,
     get_frame_list,
     load_mov_to_numpy,
 )
-from mlrunner_utils.logs import write_stats_file
+from ml_runner.utils.logs import write_stats_file
 
 
 base_path = os.path.join(
-    os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), "third_party_models"
+    os.path.dirname(os.path.dirname(os.path.dirname((os.path.abspath(__file__))))),
+    "third_party_models",
 ).replace("\\", "/")
 for i in os.listdir(base_path):
     sys.path.append(os.path.join(base_path, i).replace("\\", "/"))
@@ -48,7 +48,7 @@ sys.path.append(base_path.replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam2/sam2/configs/").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam2/sam2/").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam3/sam3/").replace("\\", "/"))
-sys.path.append(os.path.join(base_path, "mlsharp/ml-sharp/src/").replace("\\","/"))
+sys.path.append(os.path.join(base_path, "mlsharp/ml-sharp/src/").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_dam4sam/dam4sam_2").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_dam4sam/dam4sam_2").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "depth_crafter/").replace("\\", "/"))
@@ -62,19 +62,19 @@ sys.path.append(
 sys.path.append(os.path.join(base_path, "depth_anything3/").replace("\\", "/"))
 
 # TODO: Evaluate available models at runtime
-from model_scripts.run_sam import runSAM2
-from model_scripts.run_sam3 import runSAM3
-from model_scripts.run_florence import run_florence
-from model_scripts.run_dam4sam import runDAM4SAM
-from model_scripts.run_gdino import run_gdino
-from model_scripts.run_depth_crafter import run_depth_crafter
-from model_scripts.run_rgb2x import run_rgb2x
-from model_scripts.run_cotracker import run_cotracker
-from model_scripts.run_depth_anything3 import run_depth_anything3
-from model_scripts.run_ml_sharp import runMLSharp
+from ml_runner.model_scripts.run_sam import runSAM2
+from ml_runner.model_scripts.run_sam3 import runSAM3
+from ml_runner.model_scripts.run_florence import run_florence
+from ml_runner.model_scripts.run_dam4sam import runDAM4SAM
+from ml_runner.model_scripts.run_gdino import run_gdino
+from ml_runner.model_scripts.run_depth_crafter import run_depth_crafter
+from ml_runner.model_scripts.run_rgb2x import run_rgb2x
+from ml_runner.model_scripts.run_cotracker import run_cotracker
+from ml_runner.model_scripts.run_depth_anything3 import run_depth_anything3
+from ml_runner.model_scripts.run_ml_sharp import runMLSharp
 
 
-PROJECT_ROOT = Path(__file__).parent.parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent
 CONFIGS_PATH = Path(__file__).parent / "configs"
 MODEL_CONFIG_FP = Path(__file__).parent / "model_config.json"
 
@@ -447,7 +447,7 @@ class MLRunner(object):
         )
         return depth_anything
 
-    def rgbx2_definitition(
+    def rgb2x_definitition(
         self,
         image_arr,
         render_dir,
@@ -519,11 +519,11 @@ class MLRunner(object):
             self.name_idx,
         )
         return cotracker
-    
+
     def ml_sharp_definitition(
         self,
         image_arr,
-        focal_lenght, 
+        focal_length,
         film_back_size,
         render_dir,
         render_name,
@@ -543,7 +543,7 @@ class MLRunner(object):
         ml_sharp = self.supported_models["ml-sharp"](
             checkpoint_path,
             image_arr,
-            focal_lenght,
+            focal_length,
             film_back_size,
             render_dir,
             render_name,
@@ -604,7 +604,7 @@ class MLRunner(object):
         use_grid = config["use_grid"]
         grid_size = config["grid_size"]
         colourspace = config["colourspace"]
-        focal_lenght = config["focal_lenght"]
+        focal_length = config["focal_length"]
         film_back_size = config["film_back_size"]
         is_srgb = colourspace == "srgb"
         uuid = config["uuid"]
@@ -747,7 +747,7 @@ class MLRunner(object):
                 self.ml_logger.info("Fetched image info")
             except IndexError:
                 raise IndexError(
-                    f"Failed to fetch image information. Here is the frame list info: list lenght: {len(self.frame_names)} frame index: {frame_idx}"
+                    f"Failed to fetch image information. Here is the frame list info: list length: {len(self.frame_names)} frame index: {frame_idx}"
                 )
 
             # Get bboxes with GDINO or Florence if we want to
@@ -860,7 +860,7 @@ class MLRunner(object):
                 # SAM and DAM manage the limit_range interanlly
                 if limit_range:
                     first_frame_sequence += limit_range[0]
-                self.model = self.rgbx2_definitition(
+                self.model = self.rgb2x_definitition(
                     self.loaded_frames,
                     render_to,
                     render_name,
@@ -923,7 +923,7 @@ class MLRunner(object):
                     first_frame_sequence += limit_range[0]
                 self.model = self.ml_sharp_definitition(
                     self.loaded_frames,
-                    focal_lenght, 
+                    focal_length,
                     film_back_size,
                     render_to,
                     render_name,
@@ -1125,47 +1125,11 @@ class MLRunnerHandler(FileSystemEventHandler):
                 self.start_runner()
 
 
-if __name__ == "__main__":
+def main(listen_path, use_florence, use_web_server, use_allow_list, port):
     logging.basicConfig(
         format="[%(asctime)s][%(levelname)s]: %(message)s", level=logging.INFO
     )
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
-    parser = argparse.ArgumentParser(prog="MLRunner")
-    parser.add_argument(
-        "-l",
-        "--listen_dir",
-        required=True,
-        help="Directory to listen for config delivery on.",
-    )
-    parser.add_argument(
-        "-f",
-        "--use_florence",
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help="Whether to use florence or grounding dino",
-    )
-    parser.add_argument(
-        "-wb",
-        "--web_server",
-        default=True,
-        action=argparse.BooleanOptionalAction,
-        help="Whether to use web server or not",
-    )
-    parser.add_argument(
-        "--ip_allow_list",
-        default=False,
-        action=argparse.BooleanOptionalAction,
-        help="Whether to use an IP allow least to reach the webserver",
-    )
-    parser.add_argument(
-        "-p", "--port", default=8001, help="What port to use for the web server"
-    )
-    args = parser.parse_args()
-    listen_path = args.listen_dir
-    use_florence = args.use_florence
-    use_web_server = args.web_server
-    use_allow_list = args.ip_allow_list
-    port = args.port
 
     assert os.path.isdir(listen_path), (
         "Hey the path you passed doesnt exists. Pleas insert a valid path"
@@ -1210,3 +1174,51 @@ if __name__ == "__main__":
         runner.inform_server_running(closing=True)
         observer.stop()
         sys.exit()
+
+
+def cli_entrypoint():
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="MLRunner")
+    parser.add_argument(
+        "-l",
+        "--listen_dir",
+        required=True,
+        help="Directory to listen for config delivery on.",
+    )
+    parser.add_argument(
+        "-f",
+        "--use_florence",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Whether to use florence or grounding dino",
+    )
+    parser.add_argument(
+        "-wb",
+        "--web_server",
+        default=True,
+        action=argparse.BooleanOptionalAction,
+        help="Whether to use web server or not",
+    )
+    parser.add_argument(
+        "--ip_allow_list",
+        default=False,
+        action=argparse.BooleanOptionalAction,
+        help="Whether to use an IP allow least to reach the webserver",
+    )
+    parser.add_argument(
+        "-p", "--port", default=8001, help="What port to use for the web server"
+    )
+    args = parser.parse_args()
+
+    main(
+        args.listen_dir,
+        args.use_florence,
+        args.web_server,
+        args.ip_allow_list,
+        args.port,
+    )
+
+
+if __name__ == "__main__":
+    cli_entrypoint()

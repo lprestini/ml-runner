@@ -17,7 +17,7 @@ import numpy as np
 from depth_anything_3.api import DepthAnything3
 from depth_anything_3.dp_utils.visualize import visualize_depth
 import cv2
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 class run_depth_anything3(object):

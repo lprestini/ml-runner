@@ -31,6 +31,7 @@ else:
 
 IS_17 = nuke.NUKE_VERSION_MAJOR >= 17
 
+
 def cancel_task():
     config_save_directory = node["render_to"].value()
     with open(os.path.join(config_save_directory, "cancel_render"), "w") as f:
@@ -104,8 +105,12 @@ def remove_from_queue(node, path):
     queue.pop(0)
     node["queue"].setValue(",".join(i for i in queue))
     if os.path.isfile(path):
-        os.remove(path)
-
+        try:
+            os.remove(path)
+        except OSError:
+            # Adding this as sometimes you can try to remove a file while writing to it
+            time.sleep(1)
+            os.remove(path)
 
 class UserActivityMonitor(QObject):
     def __init__(self, idle_timeout=1):  # milliseconds
@@ -143,7 +148,9 @@ class CustomTimer(threading.Thread):
 
 
 class Loader(object):
-    def __init__(self, node, path, print_to_terminal=True, is_tracker=False, is_gs = True):
+    def __init__(
+        self, node, path, print_to_terminal=True, is_tracker=False, is_gs=True
+    ):
         self.node = node
         self.path = path
         self.print_to_terminal = print_to_terminal
@@ -301,13 +308,18 @@ class Loader(object):
                         elif self.is_gs:
                             if self.user_monitor.is_user_idle():
                                 for _file in filename:
-                                    splat_path = os.path.join(os.path.join(os.path.dirname(self.path), _file)).replace("\\", "/")
+                                    splat_path = os.path.join(
+                                        os.path.join(os.path.dirname(self.path), _file)
+                                    ).replace("\\", "/")
                                     if IS_17:
-                                        self.setup_geo_import(splat_path,
+                                        self.setup_geo_import(
+                                            splat_path,
                                             self.node,
                                         )
                                     else:
-                                        print(f'I cant load the splats in any version less than Nuke17, rendered splats at:\n{splat_path}')
+                                        print(
+                                            f"I cant load the splats in any version less than Nuke17, rendered splats at:\n{splat_path}"
+                                        )
                                 count = 40
                         else:
                             if self.user_monitor.is_user_idle():
@@ -476,7 +488,7 @@ if all_good:
     config["delimiter"] = delimiter
     config["use_grid"] = node["use_grid"].value()
     config["grid_size"] = node["grid_size"].value()
-    config["focal_lenght"] = node["focal_lenght"].value()
+    config["focal_length"] = node["focal_length"].value()
     config["film_back_size"] = node["film_back_size"].value()
     config["single_frame_mode"] = is_single_frame_mode
     config["colourspace"] = (
@@ -498,10 +510,10 @@ if all_good:
     if is_single_frame_mode:
         config["limit_first"] = int(frame_idx - node.firstFrame())
         config["limit_last"] = int(frame_idx - node.firstFrame()) + 1
-        config['limit_range'] = True
-    else:
+        config["limit_range"] = True
+    elif is_gs and not is_single_frame_mode:
         # If not single mode - we dont use annotation indx so it should be the first frame
-        config['frame_idx'] = int(node.firstFrame())
+        config["frame_idx"] = int(node.firstFrame())
 
     # Write related stuff
     write_sequence = node["write_sequence"].value()
@@ -580,13 +592,19 @@ if all_good:
                     if IS_17:
                         for gs_idx, _file in enumerate(filename):
                             geo_import = nuke.nodes.GeoImport()
-                            geo_import["file"].setValue(os.path.join(os.path.dirname(render_progress_file), _file).replace("\\", "/"))
+                            geo_import["file"].setValue(
+                                os.path.join(
+                                    os.path.dirname(render_progress_file), _file
+                                ).replace("\\", "/")
+                            )
                             geo_import.setXYpos(
                                 node.xpos() + (100 * (gs_idx + 1)), node.ypos()
                             )
                     else:
                         path_to_splat = os.path.dirname(render_progress_file)
-                        nuke.message(f'Your GS are ready! I cant import them in nuke as this isnt Nuke17! They are rendered at:\n{path_to_splat}')
+                        nuke.message(
+                            f"Your GS are ready! I cant import them in nuke as this isnt Nuke17! They are rendered at:\n{path_to_splat}"
+                        )
                 else:
                     for tracker_idx, _file in enumerate(filename):
                         tracker = nuke.loadToolset(
@@ -599,7 +617,9 @@ if all_good:
             remove_from_queue(node, render_progress_file)
 
         else:
-            node_loader = Loader(node, render_progress_file, is_tracker=is_tracking, is_gs=is_gs)
+            node_loader = Loader(
+                node, render_progress_file, is_tracker=is_tracking, is_gs=is_gs
+            )
 else:
     error_message = "\n".join(error_messages[error_keys[i]] for i in errors)
     nuke.alert(

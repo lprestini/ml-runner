@@ -1,11 +1,24 @@
+######################################################################
+# Copyright (c) 2025 Luca Prestini
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#     http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+######################################################################
+
 import os
+
 import numpy as np
 import torch
 import cv2
 
-# import sam3
-from sam3.model_builder import build_sam3_video_predictor_only
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from edited_sam2.sam2.build_sam import build_sam2_video_predictor
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 # select the device for computation
@@ -15,11 +28,12 @@ if torch.cuda.is_available():
 print(f"using device: {device}")
 
 
-class runSAM3(object):
+class runSAM2(object):
     # TODO move config reading to model class
     def __init__(
         self,
         sam2_checkpoint_path,
+        model_cfg_path,
         video_dir,
         numpy_img_list,
         render_dir,
@@ -29,7 +43,6 @@ class runSAM3(object):
         first_frame_sequence,
         pred_phrases,
         shot_name,
-        text_prompt,
         logger,
         uuid,
         H=None,
@@ -40,9 +53,13 @@ class runSAM3(object):
         name_idx=0,
         delimiter=".",
     ):
-        self.sam3_checkpoint = sam2_checkpoint_path
-        self.predictor = build_sam3_video_predictor_only(
-            checkpoint_path=self.sam3_checkpoint
+
+        self.checkpoint_path = sam2_checkpoint_path
+        self.config_path = model_cfg_path
+
+        # Takes relative config path
+        self.predictor = build_sam2_video_predictor(
+            self.config_path, self.checkpoint_path, device=device
         )
         self.numpy_img_list = numpy_img_list
         self.video_dir = video_dir
@@ -67,7 +84,6 @@ class runSAM3(object):
         self.name_idx = name_idx
         self.delimiter = delimiter
         self.is_limit = self.limit_range
-        self.text_prompt = text_prompt
 
         ##Debug paramters
         self.render = True  ## This is for debug only
@@ -82,10 +98,10 @@ class runSAM3(object):
                 max(box[1], box[3]),
             ]
         box = [
-            box[0] / self.W,
-            (H - box[3] - 1) / self.H,
-            box[2] / self.W,
-            (H - box[3] - 1 + (box[3] - box[1])) / self.H,
+            box[0],
+            H - box[3] - 1,
+            box[2],
+            H - box[3] - 1 + (box[3] - box[1]),
         ]
         return box
 
@@ -95,7 +111,11 @@ class runSAM3(object):
         if not self.inference_state:
             self.logger.info("Loading video")
             self.inference_state = self.predictor.init_state(
-                resource_path=self.video_dir, numpy_img_list=self.numpy_img_list
+                video_path=self.video_dir,
+                shot_name=self.shot_name,
+                limit_range=self.limit_range,
+                delimiter=self.delimiter,
+                numpy_img_list=self.numpy_img_list,
             )
             self.logger.info("Video loaded")
         else:
@@ -110,10 +130,10 @@ class runSAM3(object):
             self.ann_frame_idx -= self.limit_range[0]
 
         # Flip boxes if they're coming from Nuke
-        if all(i is not None for i in self.boxes_filt):
+        if not self.use_gdino:
             for idx, b in enumerate(self.boxes_filt):
                 self.boxes_filt[idx] = np.array(
-                    [self.flip_boxes(b, self.H, self.W)]
+                    self.flip_boxes(b, self.H, self.W)
                 ).astype("float32")
 
         # Get total num frames for progress tracking purposes
@@ -128,20 +148,17 @@ class runSAM3(object):
             ):
                 break
 
-            self.predictor.reset_session("0", inference_state=self.inference_state)
+            self.predictor.reset_state(self.inference_state)
             self.logger.info(
                 f"Segmenting object ID {idx} out of {len(self.boxes_filt)}"
             )
             ann_obj_id = 1  # give a unique id to each object we interact with (it can be any integers)
-            box_labels = [1] if self.boxes_filt[idx].any() else None
-            inference_dict = self.predictor.add_prompt(
+
+            _, out_obj_ids, out_mask_logits = self.predictor.add_new_points_or_box(
                 inference_state=self.inference_state,
                 frame_idx=self.ann_frame_idx,
                 obj_id=ann_obj_id,
-                text=self.text_prompt,
-                bounding_boxes=self.boxes_filt[idx],
-                bounding_box_labels=box_labels,
-                session_id=0,
+                box=self.boxes_filt[idx],
             )
 
             # Check for abort render file at major break points
@@ -156,20 +173,13 @@ class runSAM3(object):
             # Cant specify to start from frame 0 so we have to do this in 2 passes if ann frame idx != 0
             # First pass
             self.logger.info("Track mask forward")
-            for inference_dict in self.predictor.propagate_in_video(
-                inference_state=self.inference_state,
-                start_frame_idx=self.ann_frame_idx,
-                max_frame_num_to_track=total_steps,
-                propagation_direction="forward",
-                session_id=0,
-            ):
-                out_frame_idx = inference_dict["frame_index"]
-
-                out_obj_ids = inference_dict["outputs"]["out_obj_ids"]
-                out_mask_logits = inference_dict["outputs"]["out_binary_masks"]
-
+            for (
+                out_frame_idx,
+                out_obj_ids,
+                out_mask_logits,
+            ) in self.predictor.propagate_in_video(self.inference_state):
                 video_segments[out_frame_idx] = {
-                    out_obj_id: out_mask_logits[i]
+                    out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
                     for i, out_obj_id in enumerate(out_obj_ids)
                 }
 
@@ -207,19 +217,15 @@ class runSAM3(object):
 
             if self.ann_frame_idx != 0:
                 self.logger.info("Track mask backward")
-                for inference_dict in self.predictor.propagate_in_video(
-                    inference_state=self.inference_state,
-                    start_frame_idx=self.ann_frame_idx,
-                    max_frame_num_to_track=total_steps,
-                    propagation_direction="backward",
-                    session_id=0,
+                for (
+                    out_frame_idx,
+                    out_obj_ids,
+                    out_mask_logits,
+                ) in self.predictor.propagate_in_video(
+                    self.inference_state, reverse=True
                 ):
-                    out_frame_idx = inference_dict["frame_index"]
-                    out_obj_ids = inference_dict["outputs"]["out_obj_ids"]
-                    out_mask_logits = inference_dict["outputs"]["out_binary_masks"]
-
                     video_segments[out_frame_idx] = {
-                        out_obj_id: out_mask_logits[i]
+                        out_obj_id: (out_mask_logits[i] > 0.0).cpu().numpy()
                         for i, out_obj_id in enumerate(out_obj_ids)
                     }
 
@@ -255,18 +261,17 @@ class runSAM3(object):
                 ):
                     break
 
+                track_progress = "100%"
+
             if self.render:
                 if not os.path.isdir(self.render_dir):
                     os.mkdir(self.render_dir)
 
-            max_detection = max([len(video_segments[i].keys()) for i in video_segments])
-            total_boxes += max_detection * total_steps
             # render the segmentation results every few frames
             self.vis_frame_stride = 100
             self.vis_frame_stride = (
                 self.vis_frame_stride if not self.render else 1
             )  # interval to check mask set to 0 to render whole sequence
-            sam3_det_idx = 0
             for out_frame_idx in range(0, total_steps, self.vis_frame_stride):
                 # And we delete the file here
                 if check_for_abort_render(
@@ -276,8 +281,8 @@ class runSAM3(object):
                 if self.render:
                     for out_obj_id, out_mask in video_segments[out_frame_idx].items():
                         # Reshape the mask to match image format
-                        # mask_img_format = out_mask.reshape(self.H, self.W,1)
-                        mask_img_format = out_mask.astype(int) * 255
+                        mask_img_format = out_mask.reshape(self.H, self.W, 1)
+                        mask_img_format = mask_img_format.astype(int) * 255
                         frame_n = (
                             out_frame_idx + self.first_frame_sequence
                             if not self.is_limit
@@ -286,8 +291,14 @@ class runSAM3(object):
                             + self.first_frame_sequence
                         )
 
-                        filename = f"{self.render_name}_{self.name_idx}_{out_obj_id}_"
-                        name = f"{filename}_{str(frame_n)}.png"
+                        if self.use_gdino:
+                            filename = (
+                                f"{self.render_name}_{self.pred_phrases[idx]}_{idx}"
+                            )
+                            name = f"{filename}_{str(frame_n)}.png"
+                        else:
+                            filename = f"{self.render_name}_{self.name_idx}"
+                            name = f"{filename}_{str(frame_n)}.png"
 
                         cv2.imwrite(
                             os.path.join(self.render_dir, name).replace("\\", "/"),
@@ -300,23 +311,19 @@ class runSAM3(object):
                         ):
                             filenames.append(filename)
                             filenames = list(set(filenames))
+
                             render_progress = calc_progress(
-                                total_boxes,
-                                idx + sam3_det_idx,
-                                out_frame_idx + 1,
-                                total_steps,
+                                total_boxes, idx, out_frame_idx + 1, total_steps
                             )
-                            if out_frame_idx + 1 == total_steps:
-                                render_progress = "100%"
                             write_stats_file(
                                 self.render_dir,
                                 filenames,
                                 self.uuid,
                                 render_progress,
-                                "100%",
+                                track_progress,
                                 False,
                             )
-                        sam3_det_idx += 1
+
                         #  We check for cancel file but not delete file
                         if check_for_abort_render(
                             self.render_dir,
@@ -335,5 +342,5 @@ class runSAM3(object):
         if len(self.boxes_filt) == 0:
             write_stats_file(self.render_dir, [""], self.uuid, "100%", "100%", False)
             self.logger.info("No bbox found. Please try another word")
-        self.predictor.model._exit_context()
+
         return self.inference_state

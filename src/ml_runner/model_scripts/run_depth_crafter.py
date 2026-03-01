@@ -20,7 +20,7 @@ from unet import DiffusersUNetSpatioTemporalConditionModelDepthCrafter
 import cv2
 import torchvision.transforms.functional as tvf
 import torch.nn.functional as F
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 class run_depth_crafter(object):

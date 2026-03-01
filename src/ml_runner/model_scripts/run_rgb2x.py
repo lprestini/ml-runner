@@ -1,7 +1,7 @@
 import os
 import torch
 import cv2
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 from rgb2x.pipeline_rgb2x import StableDiffusionAOVMatEstPipeline
 from diffusers import DDIMScheduler
 import torchvision.transforms.functional as tvf
@@ -150,7 +150,7 @@ class run_rgb2x(object):
                     "100%",
                     False,
                 )
-            
+
             # Check for abort render file and delete file
             if check_for_abort_render(
                 self.render_dir, self.shot_name, self.uuid, self.logger
@@ -158,7 +158,7 @@ class run_rgb2x(object):
                 break
 
         # Render is finished - lets set progress to 100%
-        if idx +1 == B:
+        if idx + 1 == B:
             write_stats_file(
                 self.render_dir,
                 filenames,
