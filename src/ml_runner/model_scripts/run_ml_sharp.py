@@ -33,7 +33,7 @@ from sharp.utils.gaussians import (
     unproject_gaussians,
 )
 
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 class runMLSharp(object):
     def __init__(self, 

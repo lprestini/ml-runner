@@ -1,7 +1,7 @@
 import os
 import torch
 import cv2
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 from rgb2x.pipeline_rgb2x import StableDiffusionAOVMatEstPipeline
 from diffusers import DDIMScheduler
 import torchvision.transforms.functional as tvf

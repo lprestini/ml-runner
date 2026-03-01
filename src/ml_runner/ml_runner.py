@@ -26,21 +26,21 @@ import torch
 import traceback
 import argparse
 import threading
-from simple_website import MLRunnerServer
 from datetime import datetime
 import queue
 
-from mlrunner_utils.imgutils import (
+from ml_runner.simple_website import MLRunnerServer
+from ml_runner.utils.imgutils import (
     get_im_width_height,
     load_imgs_to_numpy,
     get_frame_list,
     load_mov_to_numpy,
 )
-from mlrunner_utils.logs import write_stats_file
+from ml_runner.utils.logs import write_stats_file
 
 
 base_path = os.path.join(
-    os.path.dirname(os.path.dirname((os.path.abspath(__file__)))), "third_party_models"
+    os.path.dirname(os.path.dirname(os.path.dirname((os.path.abspath(__file__))))), "third_party_models"
 ).replace("\\", "/")
 for i in os.listdir(base_path):
     sys.path.append(os.path.join(base_path, i).replace("\\", "/"))
@@ -62,16 +62,16 @@ sys.path.append(
 sys.path.append(os.path.join(base_path, "depth_anything3/").replace("\\", "/"))
 
 # TODO: Evaluate available models at runtime
-from model_scripts.run_sam import runSAM2
-from model_scripts.run_sam3 import runSAM3
-from model_scripts.run_florence import run_florence
-from model_scripts.run_dam4sam import runDAM4SAM
-from model_scripts.run_gdino import run_gdino
-from model_scripts.run_depth_crafter import run_depth_crafter
-from model_scripts.run_rgb2x import run_rgb2x
-from model_scripts.run_cotracker import run_cotracker
-from model_scripts.run_depth_anything3 import run_depth_anything3
-from model_scripts.run_ml_sharp import runMLSharp
+from ml_runner.model_scripts.run_sam import runSAM2
+from ml_runner.model_scripts.run_sam3 import runSAM3
+from ml_runner.model_scripts.run_florence import run_florence
+from ml_runner.model_scripts.run_dam4sam import runDAM4SAM
+from ml_runner.model_scripts.run_gdino import run_gdino
+from ml_runner.model_scripts.run_depth_crafter import run_depth_crafter
+from ml_runner.model_scripts.run_rgb2x import run_rgb2x
+from ml_runner.model_scripts.run_cotracker import run_cotracker
+from ml_runner.model_scripts.run_depth_anything3 import run_depth_anything3
+from ml_runner.model_scripts.run_ml_sharp import runMLSharp
 
 
 PROJECT_ROOT = Path(__file__).parent.parent

@@ -18,7 +18,7 @@ import cv2
 from tqdm import tqdm
 
 from edited_dam4sam.dam4sam_tracker import DAM4SAMTracker
-from mlrunner_utils.logs import write_stats_file, calc_progress, check_for_abort_render
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 
 # select the device for computation
