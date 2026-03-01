@@ -40,7 +40,8 @@ from ml_runner.utils.logs import write_stats_file
 
 
 base_path = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname((os.path.abspath(__file__))))), "third_party_models"
+    os.path.dirname(os.path.dirname(os.path.dirname((os.path.abspath(__file__))))),
+    "third_party_models",
 ).replace("\\", "/")
 for i in os.listdir(base_path):
     sys.path.append(os.path.join(base_path, i).replace("\\", "/"))
@@ -48,7 +49,7 @@ sys.path.append(base_path.replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam2/sam2/configs/").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam2/sam2/").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_sam3/sam3/").replace("\\", "/"))
-sys.path.append(os.path.join(base_path, "mlsharp/ml-sharp/src/").replace("\\","/"))
+sys.path.append(os.path.join(base_path, "mlsharp/ml-sharp/src/").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_dam4sam/dam4sam_2").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "edited_dam4sam/dam4sam_2").replace("\\", "/"))
 sys.path.append(os.path.join(base_path, "depth_crafter/").replace("\\", "/"))
@@ -447,7 +448,7 @@ class MLRunner(object):
         )
         return depth_anything
 
-    def rgbx2_definitition(
+    def rgb2x_definitition(
         self,
         image_arr,
         render_dir,
@@ -519,11 +520,11 @@ class MLRunner(object):
             self.name_idx,
         )
         return cotracker
-    
+
     def ml_sharp_definitition(
         self,
         image_arr,
-        focal_lenght, 
+        focal_length,
         film_back_size,
         render_dir,
         render_name,
@@ -543,7 +544,7 @@ class MLRunner(object):
         ml_sharp = self.supported_models["ml-sharp"](
             checkpoint_path,
             image_arr,
-            focal_lenght,
+            focal_length,
             film_back_size,
             render_dir,
             render_name,
@@ -604,7 +605,7 @@ class MLRunner(object):
         use_grid = config["use_grid"]
         grid_size = config["grid_size"]
         colourspace = config["colourspace"]
-        focal_lenght = config["focal_lenght"]
+        focal_length = config["focal_length"]
         film_back_size = config["film_back_size"]
         is_srgb = colourspace == "srgb"
         uuid = config["uuid"]
@@ -747,7 +748,7 @@ class MLRunner(object):
                 self.ml_logger.info("Fetched image info")
             except IndexError:
                 raise IndexError(
-                    f"Failed to fetch image information. Here is the frame list info: list lenght: {len(self.frame_names)} frame index: {frame_idx}"
+                    f"Failed to fetch image information. Here is the frame list info: list length: {len(self.frame_names)} frame index: {frame_idx}"
                 )
 
             # Get bboxes with GDINO or Florence if we want to
@@ -860,7 +861,7 @@ class MLRunner(object):
                 # SAM and DAM manage the limit_range interanlly
                 if limit_range:
                     first_frame_sequence += limit_range[0]
-                self.model = self.rgbx2_definitition(
+                self.model = self.rgb2x_definitition(
                     self.loaded_frames,
                     render_to,
                     render_name,
@@ -923,7 +924,7 @@ class MLRunner(object):
                     first_frame_sequence += limit_range[0]
                 self.model = self.ml_sharp_definitition(
                     self.loaded_frames,
-                    focal_lenght, 
+                    focal_length,
                     film_back_size,
                     render_to,
                     render_name,

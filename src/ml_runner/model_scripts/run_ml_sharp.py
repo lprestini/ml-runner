@@ -14,54 +14,61 @@
 import os
 import numpy as np
 import torch
-from PIL import Image
-import cv2
-import sys
 import torch.nn.functional as F
+import warnings
+
+from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
+
 
 # select the device for computation
 if torch.cuda.is_available():
     device = torch.device("cuda")
 
 print(f"using device: {device}")
-from sharp.models import (
-    PredictorParams,
-    create_predictor,
-)
-from sharp.utils.gaussians import (
-    save_ply,
-    unproject_gaussians,
-)
+try:
+    from sharp.models import (
+        PredictorParams,
+        create_predictor,
+    )
+    from sharp.utils.gaussians import (
+        save_ply,
+        unproject_gaussians,
+    )
+except ImportError:
+    warnings.warn("Unable to import optional model mlsharp")
 
-from ml_runner.utils.logs import write_stats_file, calc_progress, check_for_abort_render
 
 class runMLSharp(object):
-    def __init__(self, 
-                 mlsharp_ckpt_path,
-                 numpy_img_list,
-                 focal_lenght, 
-                 film_back_size, 
-                 render_dir,
-                 render_name,
-                 ann_frame_idx,
-                 first_frame_sequence,
-                 shot_name, 
-                 logger,
-                 uuid,
-                 H = None,
-                 W = None,
-                 limit_range = False,
-                 name_idx = 0,
-                 delimiter = "."):
+    def __init__(
+        self,
+        mlsharp_ckpt_path,
+        numpy_img_list,
+        focal_length,
+        film_back_size,
+        render_dir,
+        render_name,
+        ann_frame_idx,
+        first_frame_sequence,
+        shot_name,
+        logger,
+        uuid,
+        H=None,
+        W=None,
+        limit_range=False,
+        name_idx=0,
+        delimiter=".",
+    ):
 
         self.gaussian_predictor = create_predictor(PredictorParams())
-        self.gaussian_predictor.load_state_dict(torch.load(mlsharp_ckpt_path, weights_only=True))
+        self.gaussian_predictor.load_state_dict(
+            torch.load(mlsharp_ckpt_path, weights_only=True)
+        )
         self.gaussian_predictor.eval()
         self.gaussian_predictor.to(device)
 
         self.numpy_img_list = numpy_img_list
         self.render_dir = render_dir
-        self.focal_lenght = focal_lenght
+        self.focal_length = focal_length
         self.film_back_w, self.film_back_h = film_back_size
         self.render_name = render_name
         self.ann_frame_idx = ann_frame_idx
@@ -69,23 +76,23 @@ class runMLSharp(object):
         self.shot_name = shot_name
         self.logger = logger
         self.uuid = uuid
-        self.H = H 
+        self.H = H
         self.W = W
         self.limit_range = limit_range
         self.name_idx = name_idx
         self.delimiter = delimiter
-        self.is_limit = self.limit_range != False
+        self.is_limit = self.limit_range
 
         ##Debug paramters
-        self.render = True ## This is for debug only
-        self.plot_results = False 
-    
-    def predit_gs(self, image_tensor, focal_lenght_px, device):
-        """ images are expected as 0-1 range torch arrays"""
+        self.render = True  ## This is for debug only
+        self.plot_results = False
+
+    def predit_gs(self, image_tensor, focal_length_px, device):
+        """images are expected as 0-1 range torch arrays"""
         # TODO - figure out if internal shape should be exposed
         internal_shape = (1536, 1536)
         _, height, width = image_tensor.shape
-        disparity_factor = torch.tensor([focal_lenght_px / width]).float().to(device)
+        disparity_factor = torch.tensor([focal_length_px / width]).float().to(device)
 
         image_resized_pt = F.interpolate(
             image_tensor[None],
@@ -97,8 +104,8 @@ class runMLSharp(object):
         intrinsics = (
             torch.tensor(
                 [
-                    [focal_lenght_px, 0, width / 2, 0],
-                    [0, focal_lenght_px, height / 2, 0],
+                    [focal_length_px, 0, width / 2, 0],
+                    [0, focal_length_px, height / 2, 0],
                     [0, 0, 1, 0],
                     [0, 0, 0, 1],
                 ]
@@ -116,19 +123,25 @@ class runMLSharp(object):
         )
 
         return gaussians
-    
-    def focal_lenght_to_fpx(self, im_width, im_height, f = 30, film_back_w = 36, film_back_h = 24):
+
+    def focal_length_to_fpx(
+        self, im_width, im_height, f=30, film_back_w=36, film_back_h=24
+    ):
         """Go from mm to px
-        args: 
+        args:
         im_widht = iamge width
         im_height = image_height
-        f = focal lenght in millimiters
+        f = focal length in millimiters
         film_back_w = size of sensor width
         film_back_h = size of sensor height
-        returns float of focal lenght in pixels
+        returns float of focal length in pixels
         """
-        return f * np.sqrt((im_width ** 2.0) + (im_height ** 2.0)) / np.sqrt((film_back_w ** 2) + (film_back_h ** 2))
-        
+        return (
+            f
+            * np.sqrt((im_width**2.0) + (im_height**2.0))
+            / np.sqrt((film_back_w**2) + (film_back_h**2))
+        )
+
     def run(self):
         shot_name, ext = os.path.splitext(self.shot_name)
         self.render_name = self.render_name if not self.render_name == "" else shot_name
@@ -140,17 +153,31 @@ class runMLSharp(object):
             self.ann_frame_idx -= self.limit_range[0]
 
         B = len(self.numpy_img_list)
-        
-        if not check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
-            self.logger.info(f"Starting to convert GS")
+
+        if not check_for_abort_render(
+            self.render_dir, self.shot_name, self.uuid, self.logger
+        ):
+            self.logger.info("Starting to convert GS")
             for out_frame_idx, image in enumerate(self.numpy_img_list):
                 # Check for abort render file at major break points
-                if check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger, is_tracking = True):
+                if check_for_abort_render(
+                    self.render_dir,
+                    self.shot_name,
+                    self.uuid,
+                    self.logger,
+                    is_tracking=True,
+                ):
                     break
 
-                width , height = (self.W, self.H)
-                image = torch.from_numpy(image).permute(-1,0,1).float().to(device)
-                f_px = self.focal_lenght_to_fpx(width, height, f = self.focal_lenght, film_back_w = self.film_back_w, film_back_h = self.film_back_h)
+                width, height = (self.W, self.H)
+                image = torch.from_numpy(image).permute(-1, 0, 1).float().to(device)
+                f_px = self.focal_length_to_fpx(
+                    width,
+                    height,
+                    f=self.focal_length,
+                    film_back_w=self.film_back_w,
+                    film_back_h=self.film_back_h,
+                )
                 gaussians = self.predit_gs(image, f_px, device)
 
                 if self.render:
@@ -158,16 +185,41 @@ class runMLSharp(object):
                         os.mkdir(self.render_dir)
 
                 # Compute progress tracking forward
-                out_frame_idx = out_frame_idx + self.first_frame_sequence if not self.is_limit else out_frame_idx + self.limit_range[0] + self.first_frame_sequence
+                out_frame_idx = (
+                    out_frame_idx + self.first_frame_sequence
+                    if not self.is_limit
+                    else out_frame_idx + self.limit_range[0] + self.first_frame_sequence
+                )
                 filename = f"{self.render_name}_{self.name_idx}"
                 filename = f"{filename}_{str(out_frame_idx)}.ply"
-                save_ply(gaussians, f_px, (height, width), os.path.join(self.render_dir, filename))
+                save_ply(
+                    gaussians,
+                    f_px,
+                    (height, width),
+                    os.path.join(self.render_dir, filename),
+                )
                 filenames.append(filename)
                 filenames = list(set(filenames))
                 if out_frame_idx % 10 == 0:
-                    track_progress = calc_progress(1, 0, (out_frame_idx - self.ann_frame_idx) + 1, B - self.ann_frame_idx)
-                    write_stats_file(self.render_dir, filenames, self.uuid, track_progress, "100%", False)
+                    track_progress = calc_progress(
+                        1,
+                        0,
+                        (out_frame_idx - self.ann_frame_idx) + 1,
+                        B - self.ann_frame_idx,
+                    )
+                    write_stats_file(
+                        self.render_dir,
+                        filenames,
+                        self.uuid,
+                        track_progress,
+                        "100%",
+                        False,
+                    )
 
-            if not check_for_abort_render(self.render_dir, self.shot_name, self.uuid, self.logger):
-                write_stats_file(self.render_dir, filenames, self.uuid, "100%", "100%", False)
+            if not check_for_abort_render(
+                self.render_dir, self.shot_name, self.uuid, self.logger
+            ):
+                write_stats_file(
+                    self.render_dir, filenames, self.uuid, "100%", "100%", False
+                )
                 self.logger.info("All done!")

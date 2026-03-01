@@ -11,15 +11,9 @@
 # limitations under the License.
 ######################################################################
 
-from pathlib import Path
 
 import torch
 from transformers import AutoProcessor, AutoModelForCausalLM
-
-
-FLORENCE_PATH = (
-    Path(__file__).parent.parent.parent / "third_party_models" / "Florence-2-large"
-)
 
 
 class run_florence(object):
