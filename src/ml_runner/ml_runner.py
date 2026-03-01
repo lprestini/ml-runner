@@ -741,16 +741,14 @@ class MLRunner(object):
                 )
 
             self.ml_logger.info("Fetching image info..")
-            # TODO: Fix reference frame is first frame sequence
             try:
                 image_arr = self.loaded_frames[frame_idx]
+                H, W = get_im_width_height(image_arr)
+                self.ml_logger.info("Fetched image info")
             except IndexError:
-                self.ml_logger.error(
-                    f"Invalid frame index '{frame_idx}' for loaded frames iterable of length '{len(self.loaded_frames)}', using first frame instead"
+                raise IndexError(
+                    f"Failed to fetch image information. Here is the frame list info: list length: {len(self.frame_names)} frame index: {frame_idx}"
                 )
-                image_arr = self.loaded_frames[0]
-            H, W = get_im_width_height(image_arr)
-            self.ml_logger.info("Fetched image info")
 
             # Get bboxes with GDINO or Florence if we want to
             if use_gdino or self.use_florence:

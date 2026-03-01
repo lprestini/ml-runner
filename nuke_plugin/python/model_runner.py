@@ -105,8 +105,12 @@ def remove_from_queue(node, path):
     queue.pop(0)
     node["queue"].setValue(",".join(i for i in queue))
     if os.path.isfile(path):
-        os.remove(path)
-
+        try:
+            os.remove(path)
+        except OSError:
+            # Adding this as sometimes you can try to remove a file while writing to it
+            time.sleep(1)
+            os.remove(path)
 
 class UserActivityMonitor(QObject):
     def __init__(self, idle_timeout=1):  # milliseconds
@@ -507,7 +511,7 @@ if all_good:
         config["limit_first"] = int(frame_idx - node.firstFrame())
         config["limit_last"] = int(frame_idx - node.firstFrame()) + 1
         config["limit_range"] = True
-    else:
+    elif is_gs and not is_single_frame_mode:
         # If not single mode - we dont use annotation indx so it should be the first frame
         config["frame_idx"] = int(node.firstFrame())
 
