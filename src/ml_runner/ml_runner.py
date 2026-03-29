@@ -604,8 +604,8 @@ class MLRunner(object):
         use_grid = config["use_grid"]
         grid_size = config["grid_size"]
         colourspace = config["colourspace"]
-        focal_length = config["focal_length"]
-        film_back_size = config["film_back_size"]
+        focal_length = config.get("focal_length")
+        film_back_size = config.get("film_back_size")
         is_srgb = colourspace == "srgb"
         uuid = config["uuid"]
         limit_range = (
