@@ -262,7 +262,7 @@ class runSAM3(object):
             if self.render:
                 if not os.path.isdir(self.render_dir):
                     os.mkdir(self.render_dir)
-
+            
             max_detection = max([len(video_segments[i].keys()) for i in video_segments])
             total_boxes += max_detection * total_steps
             # render the segmentation results every few frames
@@ -277,7 +277,18 @@ class runSAM3(object):
                     self.render_dir, self.shot_name, self.uuid, self.logger
                 ):
                     break
+
                 if self.render:
+
+                    # Sam doesnt return empty masks if it cant detect the an object 
+                    # So we need to detect any missing indx and render empty frames so that a rendered mask doesnt have missing frames 
+                    current_keys = list(video_segments[out_frame_idx].keys())
+                    example_shape = video_segments[out_frame_idx][current_keys[0]]
+                    if len(current_keys) < max_detection:
+                        missing_indices = [i for i in range(max_detection) if i not in current_keys]
+                        for missing_indx in missing_indices:
+                            video_segments[out_frame_idx][missing_indx] = np.zeros_like(example_shape).astype(bool)
+                    
                     for out_obj_id, out_mask in video_segments[out_frame_idx].items():
                         # Reshape the mask to match image format
                         # mask_img_format = out_mask.reshape(self.H, self.W,1)
